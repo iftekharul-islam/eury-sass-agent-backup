@@ -35,7 +35,6 @@ import {
 import { SettingsStore } from "./lib/settings";
 import {
   selectChangedFiles,
-  sessionStore,
   startSessionEventBridge,
   useSessionState,
 } from "./lib/session-store";
