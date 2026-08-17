@@ -231,6 +231,24 @@ function targetRunId(rawRunId?: string): string | null {
   return activeRunId;
 }
 
+/** Resolve the run for a tool event when AgentEvent payloads omit run_id. */
+function resolveEventRunId(rawRunId?: string, toolCallId?: string): string | null {
+  if (rawRunId && state.runs.some((run) => run.id === rawRunId)) return rawRunId;
+  if (toolCallId) {
+    const activity = state.activities[toolCallId];
+    if (activity && state.runs.some((run) => run.id === activity.runId)) {
+      return activity.runId;
+    }
+  }
+  return activeRunId;
+}
+
+function shouldIgnoreToolEvent(activity: ToolActivityRecord): boolean {
+  if (!activeRunId || activity.runId === activeRunId) return false;
+  const active = runById(activeRunId);
+  return active?.status === "running";
+}
+
 function toRecord(value: unknown): Record<string, unknown> | undefined {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : undefined;
 }
@@ -470,11 +488,20 @@ export const sessionStore = {
     const parsed = parseStreamEvent(raw);
     const rawRecord = toRecord(raw);
     const payload = toRecord(rawRecord?.payload) ?? rawRecord;
-    const runId = targetRunId(firstString(payload, ["run_id", "runId"]));
+    const toolCallId =
+      parsed.kind === "tool_start" ||
+      parsed.kind === "tool_end" ||
+      parsed.kind === "tool_output_delta" ||
+      parsed.kind === "approval_required"
+        ? parsed.toolCallId
+        : undefined;
+    const runId = resolveEventRunId(firstString(payload, ["run_id", "runId"]), toolCallId);
 
     // Meta is not transcript content, but it proves the core is alive.
     if (parsed.kind === "meta") {
-      if (runId) markProgress(runId, "meta");
+      if (runId) {
+        markProgress(runId, "meta");
+      }
       return;
     }
 
@@ -738,7 +765,7 @@ function addActivity(
 function appendToolOutput(toolCallId: string, stream: "stdout" | "stderr", text: string) {
   const activity = state.activities[toolCallId];
   if (!activity) return;
-  if (activeRunId && activity.runId !== activeRunId) return;
+  if (shouldIgnoreToolEvent(activity)) return;
   if (!text) return;
 
   const chunk = stripAnsi(text);
@@ -759,7 +786,7 @@ function appendToolOutput(toolCallId: string, stream: "stdout" | "stderr", text:
 function finishActivity(toolCallId: string, result?: Record<string, unknown>) {
   const activity = state.activities[toolCallId];
   if (!activity) return;
-  if (activeRunId && activity.runId !== activeRunId) return;
+  if (shouldIgnoreToolEvent(activity)) return;
 
   const stdout = firstString(result, ["stdout", "output", "content"]);
   const stderr = firstString(result, ["stderr", "error"]);

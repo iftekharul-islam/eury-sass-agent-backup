@@ -137,8 +137,8 @@ export function UserMenu({ name, plan, avatar, theme, onOpenSettings, onSetTheme
             className="user-menu-row"
             onClick={() => onSetTheme(isDark ? "light" : "dark")}
           >
-            <Icon name={isDark ? "moon" : "sun"} size={15} />
-            <span>{isDark ? "Dark mode" : "Light mode"}</span>
+            <Icon name={isDark ? "sun" : "moon"} size={15} />
+            <span>{isDark ? "Light mode" : "Dark mode"}</span>
           </button>
 
           <div className="user-menu-divider" />

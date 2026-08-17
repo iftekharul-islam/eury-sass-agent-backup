@@ -62,13 +62,48 @@ impl RunManager {
     /// # Errors
     ///
     /// Returns an error if no active run exists for the given conversation.
+    ///
+    /// Frees the conversation's slot immediately rather than waiting for the
+    /// cancelled run to unwind and unregister itself. Without this, a user
+    /// hitting Stop and immediately sending a new message can hit "a
+    /// foreground run is already active" while the old run is still winding
+    /// down (the desktop AI SDK path cancels via its own `AbortController`,
+    /// not this token, so its cleanup is async and not guaranteed to have
+    /// finished by the time the next run tries to register).
     pub async fn cancel_run(&self, conversation_id: Uuid) -> Result<(), AgentError> {
-        let runs = self.active_runs.lock().await;
-        if let Some(token) = runs.get(&conversation_id) {
+        let mut runs = self.active_runs.lock().await;
+        if let Some(token) = runs.remove(&conversation_id) {
             token.cancel();
             Ok(())
         } else {
             Err(AgentError::InvalidTransition("No active run found for conversation".into()))
         }
+    }
+
+    /// Registers a foreground run for cancellation without starting the Rust inference loop.
+    ///
+    /// Used by the desktop AI SDK path where TypeScript owns model streaming.
+    pub async fn register_run(&self, conversation_id: Uuid) -> Result<CancellationToken, AgentError> {
+        let mut runs = self.active_runs.lock().await;
+        if runs.contains_key(&conversation_id) {
+            return Err(AgentError::InvalidTransition(
+                "A foreground run is already active for this conversation".into(),
+            ));
+        }
+        let token = CancellationToken::new();
+        runs.insert(conversation_id, token.clone());
+        Ok(token)
+    }
+
+    /// Clears a run registered via [`Self::register_run`].
+    pub async fn unregister_run(&self, conversation_id: Uuid) {
+        let mut runs = self.active_runs.lock().await;
+        runs.remove(&conversation_id);
+    }
+
+    /// Returns the cancellation token for an active run, if any.
+    pub async fn cancel_token_for(&self, conversation_id: Uuid) -> Option<CancellationToken> {
+        let runs = self.active_runs.lock().await;
+        runs.get(&conversation_id).cloned()
     }
 }

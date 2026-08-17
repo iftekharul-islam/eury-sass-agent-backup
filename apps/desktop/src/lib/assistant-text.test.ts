@@ -60,6 +60,24 @@ describe("stripToolCallFences", () => {
     expect(stripToolCallFences(text)).toBe(text.trim());
   });
 
+  it("keeps a package.json excerpt with a name field", () => {
+    const text =
+      'Here is the manifest:\n\n```json\n{"name": "my-next-app", "version": "1.0.0", "private": true, "scripts": {"dev": "next dev"}}\n```\n\nThat is the package.json.';
+    expect(stripToolCallFences(text)).toBe(text.trim());
+  });
+
+  it("keeps a long JSON example with name plus unrelated fields", () => {
+    const text =
+      'API payload:\n\n```json\n{"name": "create-user", "description": "Creates a user", "input": {"email": "string"}}\n```\n\nUse that shape.';
+    expect(stripToolCallFences(text)).toBe(text.trim());
+  });
+
+  it("keeps an unterminated package.json fence while streaming", () => {
+    const text =
+      'Creating package.json:\n\n```json\n{"name": "my-app", "version": "1.0.0", "dependencies": {';
+    expect(stripToolCallFences(text)).toBe(text.trim());
+  });
+
   it("keeps ordinary fenced code untouched", () => {
     const text = 'Try this:\n\n```ts\nconst name = "eury";\n```\n\nThat should work.';
     expect(stripToolCallFences(text)).toBe(text.trim());

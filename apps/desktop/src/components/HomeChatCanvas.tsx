@@ -3,7 +3,10 @@ import { Icon } from "./Icons";
 import { ChatTurn } from "./chat/ChatTurn";
 import { Composer } from "./Composer";
 import { useAppSettings, SettingsStore } from "../lib/settings";
-import { normalizeEuryProvider, streamChat } from "../lib/chat";
+import { normalizeEuryProvider } from "../lib/chat";
+import { runHomeChatAgentTurn } from "../lib/chat-agent/agent-runner";
+import type { ChatAgentStep } from "../lib/chat-agent/types";
+import type { GeneratedImagePreview } from "../lib/conversations";
 import { humanizeChatError, sanitizeAssistantContent } from "../lib/chat-errors";
 import {
   effortToCompressionRatio,
@@ -65,7 +68,12 @@ export interface HomeChatCanvasProps {
   initialPrompt?: string;
   onInitialPromptConsumed?: () => void;
   onBeginTurn: (text: string, modelId: string, modelLabel?: string) => void;
-  onAppendAssistantDelta: (conversationId: string, delta: string, model: string) => void;
+  onSetLastAssistantContent: (
+    conversationId: string,
+    content: string,
+    model: string,
+    generatedImages?: GeneratedImagePreview[],
+  ) => void;
   onRemoveLastAssistant?: () => void;
   onRunError?: (message: string) => void;
 }
@@ -77,7 +85,7 @@ export function HomeChatCanvas({
   initialPrompt,
   onInitialPromptConsumed,
   onBeginTurn,
-  onAppendAssistantDelta,
+  onSetLastAssistantContent,
   onRemoveLastAssistant,
   onRunError,
 }: HomeChatCanvasProps) {
@@ -87,6 +95,8 @@ export function HomeChatCanvas({
   const [runError, setRunError] = React.useState<string | null>(null);
   const [effort, setEffort] = React.useState<EffortLevel>("medium");
   const [composerPrefill, setComposerPrefill] = React.useState<{ key: number; text: string } | null>(null);
+  const [agentSteps, setAgentSteps] = React.useState<ChatAgentStep[]>([]);
+  const [liveGeneratedImages, setLiveGeneratedImages] = React.useState<GeneratedImagePreview[]>([]);
   const abortRef = React.useRef<AbortController | null>(null);
   const inFlightRef = React.useRef(false);
   const messagesRef = React.useRef(messages);
@@ -110,6 +120,8 @@ export function HomeChatCanvas({
     inFlightRef.current = false;
     setStreaming(false);
     setActiveRun(null);
+    setAgentSteps([]);
+    setLiveGeneratedImages([]);
   }, []);
 
   const handleSend = React.useCallback(
@@ -128,6 +140,8 @@ export function HomeChatCanvas({
       }
 
       setRunError(null);
+      setAgentSteps([]);
+      setLiveGeneratedImages([]);
       onBeginTurn(trimmed, settings.model.activeModelId, settings.model.activeModelLabel);
 
       abortRef.current?.abort();
@@ -139,37 +153,51 @@ export function HomeChatCanvas({
         createHomeRun(conversationId, trimmed, settings.model.activeModelLabel),
       );
 
-      const history = priorContextMessages(messagesRef.current);
+      const history = priorContextMessages(messagesRef.current).slice(0, -2);
 
       try {
-        await streamChat(
-          {
-            text: trimmed,
-            contextMessages: history.map((message) => ({
-              role: message.role,
-              content: message.content,
-            })),
+        const result = await runHomeChatAgentTurn({
+          request: {
             provider: normalizeEuryProvider(settings.model.activeProvider),
             model: settings.model.activeModelId,
             mode: "chat",
             compressionRatio: effortToCompressionRatio(effort),
             maxOutputTokens: effortToMaxOutputTokens(effort),
           },
-          (delta) => {
-            onAppendAssistantDelta(conversationId, delta, settings.model.activeModelId);
+          text: trimmed,
+          priorMessages: history.map((message) => ({
+            role: message.role,
+            content: message.content,
+          })),
+          enableImageTool: settings.capabilities.enableImageGeneration,
+          signal: controller.signal,
+          onDelta: (content) => {
+            onSetLastAssistantContent(conversationId, content, settings.model.activeModelId);
             setActiveRun((prev) =>
               prev
                 ? {
                     ...prev,
                     phase: "responding",
-                    streamedChars: prev.streamedChars + delta.length,
+                    streamedChars: content.length,
                     lastEventAt: Date.now(),
                   }
                 : prev,
             );
           },
-          controller.signal,
+          onStepsChange: setAgentSteps,
+          onGeneratedImage: (image) => {
+            setLiveGeneratedImages((current) => [...current, image]);
+          },
+        });
+
+        onSetLastAssistantContent(
+          conversationId,
+          result.text,
+          settings.model.activeModelId,
+          result.images,
         );
+        setLiveGeneratedImages([]);
+        setAgentSteps([]);
       } catch (e) {
         if (controller.signal.aborted) return;
         onRemoveLastAssistant?.();
@@ -183,15 +211,18 @@ export function HomeChatCanvas({
         inFlightRef.current = false;
         setStreaming(false);
         setActiveRun(null);
+        setAgentSteps([]);
+        setLiveGeneratedImages([]);
       }
     },
     [
       conversationId,
       effort,
-      onAppendAssistantDelta,
       onBeginTurn,
       onRemoveLastAssistant,
       onRunError,
+      onSetLastAssistantContent,
+      settings.capabilities.enableImageGeneration,
       settings.model.activeModelId,
       settings.model.activeModelLabel,
       settings.model.activeProvider,
@@ -224,6 +255,8 @@ export function HomeChatCanvas({
     inFlightRef.current = false;
     setStreaming(false);
     setActiveRun(null);
+    setAgentSteps([]);
+    setLiveGeneratedImages([]);
   }, [conversationId]);
 
   const userLabel = settings.profile.preferredName || "You";
@@ -260,9 +293,15 @@ export function HomeChatCanvas({
 
             const isStreamingAssistant =
               streaming && m.role === "assistant" && index === messages.length - 1;
+            const generatedImages =
+              m.generatedImages ??
+              (isStreamingAssistant ? liveGeneratedImages : undefined);
+            const imageGenerating =
+              isStreamingAssistant &&
+              streaming &&
+              liveGeneratedImages.length === 0 &&
+              agentSteps.some((step) => step.tool === "generate_image");
 
-            // Retrying an assistant reply resends the prompt that produced
-            // it, the same "retry = resend" behavior used for user turns.
             const precedingUserMessage =
               m.role === "assistant"
                 ? [...messages.slice(0, index)].reverse().find((msg) => msg.role === "user")
@@ -283,8 +322,12 @@ export function HomeChatCanvas({
                 }
                 avatar={m.role === "user" ? userAvatar : "E"}
                 text={content || undefined}
+                generatedImages={generatedImages}
+                imageGenerating={imageGenerating}
                 statusNode={
-                  isStreamingAssistant && activeRun ? <RunStatus run={activeRun} /> : undefined
+                  isStreamingAssistant && activeRun && !imageGenerating ? (
+                    <RunStatus run={activeRun} />
+                  ) : undefined
                 }
                 showActions={false}
                 actionsDisabled={streaming}

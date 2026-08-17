@@ -379,8 +379,17 @@ fn test_classify_risk_execute_distinguishes_ls_from_rm_rf() -> Result<(), Box<dy
             "run_command",
             &json!({"command": "rm -fr /tmp/x"})
         ),
-        RiskClassification::Forbidden,
+        RiskClassification::Critical,
         "flag order (-fr vs -rf) must not matter"
+    );
+    assert_eq!(
+        engine.classify_risk(
+            &ToolClass::Execute,
+            "run_command",
+            &json!({"command": "rm -rf cit230"})
+        ),
+        RiskClassification::Critical,
+        "workspace folder deletes are critical, not forbidden"
     );
     assert_eq!(
         engine.classify_risk(
@@ -498,5 +507,40 @@ fn session_execute_grant_covers_any_command_shape() -> Result<(), Box<dyn Error>
         Decision::Allow,
         "a session grant must cover later commands in a new run",
     );
+    Ok(())
+}
+
+#[test]
+fn test_find_listing_command_is_not_denied_for_trusted_workspace() -> Result<(), Box<dyn Error>> {
+    let policy = standard_preset();
+    let grant_store = GrantStore::new_in_memory()?;
+    let engine = PolicyEngine::new(policy, grant_store)?;
+    let ws = workspace(agent_sandbox::workspace::TrustState::Trusted);
+    let cmd = "find . -mindepth 1 -maxdepth 1 ! -name AGENTS.md ! -name node_modules";
+    let decision = engine.evaluate(
+        &ToolClass::Execute,
+        "run_command",
+        &json!({"command": cmd}),
+        Some(&ws),
+        &agent_types::requests::RunMode::Agent,
+        None,
+    );
+    assert_ne!(decision, Decision::Deny, "find listing should not be denied");
+    Ok(())
+}
+
+#[test]
+fn test_rm_rf_workspace_dir_is_not_denied_for_trusted_agent() -> Result<(), Box<dyn Error>> {
+    let engine = PolicyEngine::new(standard_preset(), GrantStore::new_in_memory()?)?;
+    let trusted = workspace(agent_sandbox::workspace::TrustState::Trusted);
+    let decision = engine.evaluate(
+        &ToolClass::Execute,
+        "run_command",
+        &json!({"command": "rm -rf cit230"}),
+        Some(&trusted),
+        &agent_types::requests::RunMode::Agent,
+        None,
+    );
+    assert_ne!(decision, Decision::Deny, "rm -rf on a project folder should not be denied");
     Ok(())
 }

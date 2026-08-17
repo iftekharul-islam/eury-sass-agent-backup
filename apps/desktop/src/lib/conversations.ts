@@ -13,6 +13,12 @@ export interface ConversationSummary {
   pinnedAt: number | null;
 }
 
+export interface GeneratedImagePreview {
+  dataUrl: string;
+  caption?: string;
+  mimeType?: string;
+}
+
 export interface StoredMessage {
   id: number;
   role: 'user' | 'assistant';
@@ -21,6 +27,7 @@ export interface StoredMessage {
   modelLabel?: string;
   color?: string;
   createdAt?: number;
+  generatedImages?: GeneratedImagePreview[];
 }
 
 interface PaginatedResponse<T> {
@@ -46,6 +53,7 @@ type ApiMessage = {
   model?: string | null;
   color?: string | null;
   sortOrder: number;
+  generatedImages?: GeneratedImagePreview[] | null;
 };
 
 async function platformFetch<T>(path: string, init?: RequestInit): Promise<T> {
@@ -100,6 +108,7 @@ function apiMessagesToStored(messages: ApiMessage[]): StoredMessage[] {
     content: m.content,
     ...(m.model ? { model: m.model } : {}),
     ...(m.color ? { color: m.color } : {}),
+    ...(m.generatedImages?.length ? { generatedImages: m.generatedImages } : {}),
   }));
 }
 
@@ -109,6 +118,7 @@ function storedMessagesToApi(messages: StoredMessage[]) {
     content: m.content,
     ...(m.model ? { model: m.model } : {}),
     ...(m.color ? { color: m.color } : {}),
+    ...(m.generatedImages?.length ? { generatedImages: m.generatedImages } : {}),
   }));
 }
 

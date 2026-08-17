@@ -9,6 +9,7 @@ members = [
   "crates/agent-memory",
   "crates/agent-tools",
   "crates/agent-core", "eval",
+  "crates/agent-sandbox-probe",
 ]
 resolver = "2"
 

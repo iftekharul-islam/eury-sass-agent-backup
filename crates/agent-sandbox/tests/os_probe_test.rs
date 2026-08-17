@@ -114,12 +114,38 @@ fn macos_has_no_unimplemented_probes_left() {
 
 #[cfg(target_os = "linux")]
 #[test]
-fn linux_honestly_reports_unimplemented_rather_than_lying() {
+fn linux_reports_landlock_and_verifies_containment() {
     let caps = probe_capabilities();
     assert_eq!(caps.os, "linux");
     assert_eq!(caps.mechanism.as_deref(), Some("landlock_seccomp"));
-    assert!(!caps.privileged_tools_enabled);
-    assert!(caps.probes.iter().all(|p| !p.passed));
+
+    let read_probe = caps.probes.iter().find(|p| p.id == "outside_root_read_denied");
+    let write_probe = caps.probes.iter().find(|p| p.id == "outside_root_write_denied");
+    assert!(read_probe.is_some_and(|p| p.passed), "outside-root read must be genuinely denied");
+    assert!(write_probe.is_some_and(|p| p.passed), "outside-root write must be genuinely denied");
+
+    let fork_probe = caps.probes.iter().find(|p| p.id == "process_tree_contained");
+    let escalation_probe = caps.probes.iter().find(|p| p.id == "privilege_escalation_denied");
+    assert!(fork_probe.is_some_and(|p| p.passed), "a sandboxed process must not be able to fork");
+    assert!(
+        escalation_probe.is_some_and(|p| p.passed),
+        "a sandboxed process must not be able to exec a setuid-root binary",
+    );
+
+    assert!(caps.privileged_tools_enabled);
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn linux_has_no_unimplemented_probes_left() {
+    let caps = probe_capabilities();
+    let stubs: Vec<&str> = caps
+        .probes
+        .iter()
+        .filter(|p| p.reason_code.as_deref() == Some("probe_not_implemented"))
+        .map(|p| p.id.as_str())
+        .collect();
+    assert!(stubs.is_empty(), "these probes are still stubs: {stubs:?}");
 }
 
 #[cfg(target_os = "windows")]

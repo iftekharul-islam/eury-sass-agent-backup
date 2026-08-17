@@ -7,8 +7,26 @@ fn assert_forbidden(cmd: &str) {
     );
 }
 
+fn parse_ok(cmd: &str) -> agent_sandbox::command::CommandShape {
+    match CommandGuard::parse_and_verify(cmd) {
+        Ok(shape) => shape,
+        Err(err) => panic!("expected Ok for {cmd:?}: {err:?}"),
+    }
+}
+
 fn assert_allowed(cmd: &str) {
-    assert!(CommandGuard::parse_and_verify(cmd).is_ok(), "expected Ok for {cmd:?}");
+    let _ = parse_ok(cmd);
+}
+
+#[test]
+fn find_with_negation_is_allowed() {
+    assert_allowed("find . -mindepth 1 -maxdepth 1 ! -name AGENTS.md ! -name node_modules");
+}
+
+#[test]
+fn rm_rf_workspace_dir_is_allowed() {
+    assert_allowed("rm -rf cit230");
+    assert_allowed("rm -rf node_modules");
 }
 
 #[test]
@@ -92,7 +110,7 @@ fn marks_shell_invocations_as_shell_eval() {
 #[test]
 fn wraps_chained_commands_in_shell_eval() {
     let cmd = "pwd && find . -maxdepth 2 -type f -print | sort | head -n 20";
-    let shape = CommandGuard::parse_and_verify(cmd).expect("chained command should be allowed");
+    let shape = parse_ok(cmd);
     assert!(shape.is_shell_eval, "&& and | must run under sh -c");
     assert_eq!(shape.executable, "sh");
     assert_eq!(shape.args, vec!["-c", cmd]);
@@ -100,7 +118,7 @@ fn wraps_chained_commands_in_shell_eval() {
 
 #[test]
 fn allows_simple_pwd_without_shell_wrapper() {
-    let shape = CommandGuard::parse_and_verify("pwd").expect("pwd alone should be allowed");
+    let shape = parse_ok("pwd");
     assert!(!shape.is_shell_eval);
     assert_eq!(shape.executable, "pwd");
 }

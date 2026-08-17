@@ -2,6 +2,7 @@ use crate::audit::{AuditEvent, AuditQueue};
 use crate::schema::{Decision, GrantScope, ToolClass, WorkspacePolicy};
 use crate::store::{Grant, GrantStore};
 use agent_sandbox::command::CommandGuard;
+use agent_sandbox::rm_safety::{is_forbidden_rm_command, rm_has_recursive_and_force};
 use agent_sandbox::workspace::Workspace;
 use agent_types::requests::RunMode;
 use globset::Glob;
@@ -40,32 +41,9 @@ static FORBIDDEN_COMMAND_PATTERNS: LazyLock<Vec<Regex>> = LazyLock::new(|| {
     ])
 });
 
-/// Matches `rm` invoked with both a recursive flag and a force flag, in
-/// either order and either combined (`-rf`/`-fr`) or separate (`-r -f`) —
-/// a single fixed regex can't express "these two flags, any order, maybe
-/// combined" cleanly, so this is plain code instead.
-fn is_rm_recursive_force(command: &str) -> bool {
-    static RM_WORD: LazyLock<Vec<Regex>> = LazyLock::new(|| compile_patterns(&[r"\brm\b"]));
-    if !RM_WORD.iter().any(|re| re.is_match(command)) {
-        return false;
-    }
-
-    // A short-flag cluster (`-rf`, `-Rf`, `-r`, ...) mentions the flag if it
-    // contains the letter; a long option must match the whole token.
-    let is_recursive_token = |t: &str| {
-        (t.starts_with('-') && !t.starts_with("--") && (t.contains('r') || t.contains('R')))
-            || t == "--recursive"
-    };
-    let is_force_token =
-        |t: &str| (t.starts_with('-') && !t.starts_with("--") && t.contains('f')) || t == "--force";
-
-    let tokens: Vec<&str> = command.split_whitespace().collect();
-    tokens.iter().any(|t| is_recursive_token(t)) && tokens.iter().any(|t| is_force_token(t))
-}
-
 /// Commands that need the tightest scrutiny short of an outright deny — the
 /// "Execute, elevated" row of the threat model's table (dependency install,
-/// container/image builds, and any use of shell metacharacters).
+/// container/image builds, workspace `rm -rf`, and shell metacharacters).
 static ELEVATED_COMMAND_PATTERNS: LazyLock<Vec<Regex>> = LazyLock::new(|| {
     compile_patterns(&[
         r"\b(npm|pnpm|yarn)\s+(i|install|add)\b",
@@ -285,12 +263,14 @@ impl PolicyEngine {
         let Some(command) = args.get("command").and_then(Value::as_str) else {
             return RiskClassification::Elevated;
         };
-        if is_rm_recursive_force(command)
+        if is_forbidden_rm_command(command)
             || FORBIDDEN_COMMAND_PATTERNS.iter().any(|re| re.is_match(command))
         {
             return RiskClassification::Forbidden;
         }
-        if ELEVATED_COMMAND_PATTERNS.iter().any(|re| re.is_match(command)) {
+        if rm_has_recursive_and_force(command)
+            || ELEVATED_COMMAND_PATTERNS.iter().any(|re| re.is_match(command))
+        {
             return RiskClassification::Critical;
         }
         RiskClassification::Elevated
@@ -421,6 +401,57 @@ impl PolicyEngine {
         }
 
         decision
+    }
+
+    /// User-facing explanation when [`Self::evaluate`] returns [`Decision::Deny`].
+    pub fn explain_denial(
+        &self,
+        tool_class: &ToolClass,
+        tool_name: &str,
+        args: &Value,
+        workspace: Option<&Workspace>,
+    ) -> String {
+        if let Some(ws) = workspace
+            && !ws.is_trusted()
+            && !matches!(*tool_class, ToolClass::Read)
+        {
+            return format!(
+                "{tool_name} was blocked: this project is not trusted, so Eury can only read it. \
+                 Trust the project in the app to allow writes and commands."
+            );
+        }
+
+        let risk = self.classify_risk(tool_class, tool_name, args);
+        if risk == RiskClassification::Forbidden {
+            if matches!(tool_class, ToolClass::Execute)
+                && let Some(cmd) = args.get("command").and_then(Value::as_str)
+            {
+                return format!(
+                    "{tool_name} was blocked: `{cmd}` is forbidden by workspace policy \
+                     (destructive system path, privilege escalation, or disallowed shell syntax)."
+                );
+            }
+            return format!(
+                "{tool_name} was blocked: this action is forbidden by workspace policy."
+            );
+        }
+
+        if matches!(tool_class, ToolClass::Execute)
+            && let Some(cmd) = args.get("command").and_then(Value::as_str)
+            && Self::command_matches_deny_pattern(&self.policy.commands.deny_patterns, cmd)
+        {
+            return format!(
+                "{tool_name} was blocked: `{cmd}` matches a blocked command pattern in workspace policy."
+            );
+        }
+
+        if let Some(deny) = &self.policy.tools.deny
+            && deny.contains(&tool_name.to_string())
+        {
+            return format!("{tool_name} is on the workspace policy deny list.");
+        }
+
+        format!("{tool_name} was blocked by the workspace policy.")
     }
 
     /// Checks `path` against `deny_globs`. Patterns containing `/` (e.g.

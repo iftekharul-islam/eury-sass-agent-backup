@@ -120,6 +120,10 @@ impl CommandGuard {
             return Err(CommandGuardError::ForbiddenCommand(raw_executable.clone()));
         }
 
+        if basename == "rm" && crate::rm_safety::is_forbidden_rm_argv(tokens) {
+            return Err(CommandGuardError::ForbiddenCommand(raw_executable.clone()));
+        }
+
         // `env [-iu] [NAME=VALUE ...] cmd [args...]` runs `cmd` — peel the
         // wrapper off and verify what it actually launches.
         if basename == "env" {
@@ -203,7 +207,6 @@ impl CommandGuard {
         let mut set = HashSet::new();
         set.insert("sudo");
         set.insert("su");
-        set.insert("rm"); // Maybe not forbid rm completely, but forbid rm -rf /
         set.insert("mkfs");
         set.insert("dd");
         set

@@ -22,6 +22,12 @@ export type EuryModelsResponse = {
   legacyReplacements: Record<string, string>;
 };
 
+export type ChatToolResultPayload = {
+  role: 'tool';
+  name: string;
+  content: string;
+};
+
 export type ChatStreamRequest = {
   text: string;
   contextMessages?: ChatContextMessage[];
@@ -31,6 +37,7 @@ export type ChatStreamRequest = {
   compressionRatio?: number;
   maxOutputTokens?: number;
   enableImageTool?: boolean;
+  toolResults?: ChatToolResultPayload[];
   mock?: boolean;
 };
 
@@ -88,7 +95,6 @@ export async function streamChat(
       mode: 'chat',
       compressionRatio: 0.78,
       maxOutputTokens: 5000,
-      enableImageTool: true,
       ...request,
       provider: normalizeEuryProvider(request.provider),
     }),

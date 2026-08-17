@@ -1,4 +1,5 @@
 import { ipcClient, type HistoryMessage, type RunRequest } from './ipc';
+import { runAiSdkAgentTurn } from './ai-sdk-agent/agent-runner';
 
 export interface AttachmentPayload {
   id: string;
@@ -19,6 +20,7 @@ export interface StartRunOptions {
   modelId: string;
   attachments?: AttachmentPayload[];
   workspaceRoot?: string;
+  isTrusted?: boolean;
   temperature?: number;
   maxTokens?: number;
 }
@@ -39,6 +41,32 @@ export async function startManagedRun(options: StartRunOptions): Promise<string>
   const runId = options.runId ?? crypto.randomUUID();
   const modeKey = options.mode.toLowerCase() as StartRunOptions['mode'];
 
+  const useAiSdk =
+    options.workspaceRoot &&
+    (modeKey === 'agent' || modeKey === 'build' || modeKey === 'plan' || modeKey === 'ask');
+
+  if (useAiSdk) {
+    const controller = new AbortController();
+    activeAiSdkControllers.set(options.conversationId, controller);
+    try {
+      await runAiSdkAgentTurn({
+        runId,
+        conversationId: options.conversationId,
+        mode: modeKey,
+        prompt: options.prompt,
+        history: options.history,
+        provider: options.provider,
+        modelId: options.modelId,
+        workspaceRoot: options.workspaceRoot,
+        isTrusted: options.isTrusted,
+        signal: controller.signal,
+      });
+    } finally {
+      activeAiSdkControllers.delete(options.conversationId);
+    }
+    return runId;
+  }
+
   await ipcClient.run.start({
     runId,
     conversationId: options.conversationId,
@@ -56,6 +84,14 @@ export async function startManagedRun(options: StartRunOptions): Promise<string>
   });
 
   return runId;
+}
+
+const activeAiSdkControllers = new Map<string, AbortController>();
+
+/** Cancels an in-flight AI SDK run for a conversation. */
+export function cancelAiSdkRun(conversationId: string) {
+  const controller = activeAiSdkControllers.get(conversationId);
+  if (controller) controller.abort();
 }
 
 export function composerModeToRunMode(mode: string): StartRunOptions['mode'] {

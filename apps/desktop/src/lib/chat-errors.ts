@@ -85,6 +85,22 @@ export function stripTechnicalNoise(message: string): string {
   return cleaned || 'The model provider returned an error. Please try again.';
 }
 
+/**
+ * Extracts a readable message from anything a `throw` or a rejected promise
+ * can produce. Tauri IPC command errors reject with a plain serialized object
+ * (e.g. `{ type: "Internal", message: "..." }`), not an `Error` instance, so a
+ * bare `err instanceof Error` check silently swallows the real reason.
+ */
+export function describeThrown(err: unknown, fallback = 'Something went wrong.'): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === 'string' && err.trim()) return err;
+  if (err && typeof err === 'object' && 'message' in err) {
+    const message = (err as { message?: unknown }).message;
+    if (typeof message === 'string' && message.trim()) return message;
+  }
+  return fallback;
+}
+
 /** User-facing message for thrown errors (HTTP, stream, provider). */
 export function humanizeChatError(error: unknown): string {
   if (error instanceof Error) {

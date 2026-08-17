@@ -30,6 +30,7 @@ type RawEvent = {
   name?: string;
   arguments?: unknown;
   result?: unknown;
+  stream?: string;
 };
 
 function firstStringFrom(

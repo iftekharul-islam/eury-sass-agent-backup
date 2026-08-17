@@ -13,6 +13,8 @@ use tauri::Manager;
 ///
 /// Returns the Tauri runtime error when the application window cannot start.
 pub fn run() -> Result<(), tauri::Error> {
+    configure_linux_sandbox_probe();
+
     // The encrypted store lives in the OS app-data dir for `com.eury.agent`,
     // resolved from Tauri's own path API rather than hardcoded, so it lands
     // in the right place per platform. Resolving it needs an `App`, so state
@@ -71,6 +73,9 @@ pub fn run() -> Result<(), tauri::Error> {
             commands::app_get_platform,
             commands::capabilities_get,
             commands::run_start,
+            commands::ai_run_register,
+            commands::ai_run_complete,
+            commands::tool_execute,
             commands::run_cancel,
             commands::run_approve,
             commands::run_steer,
@@ -105,3 +110,13 @@ pub fn run() -> Result<(), tauri::Error> {
 
     Ok(())
 }
+
+#[cfg(target_os = "linux")]
+fn configure_linux_sandbox_probe() {
+    // `agent-sandbox` resolves the probe binary at runtime via `AGENT_SANDBOX_PROBE`,
+    // a sibling of the current executable, or `target/{debug,release}/agent-sandbox-probe`.
+    // Build embeds the probe path via `build.rs`; no runtime env mutation is needed here.
+}
+
+#[cfg(not(target_os = "linux"))]
+fn configure_linux_sandbox_probe() {}

@@ -140,6 +140,31 @@ export function useHomeChatHistory(isAuthenticated: boolean) {
     [scheduleSync],
   );
 
+  const setLastAssistantContent = useCallback(
+    (
+      conversationId: string,
+      content: string,
+      model: string,
+      generatedImages?: StoredMessage['generatedImages'],
+    ) => {
+      setMessages((prev) => {
+        if (prev.length === 0) return prev;
+        const last = prev[prev.length - 1];
+        if (last?.role !== 'assistant') return prev;
+        const next = [...prev];
+        next[next.length - 1] = {
+          ...last,
+          content,
+          model,
+          ...(generatedImages?.length ? { generatedImages } : { generatedImages: undefined }),
+        };
+        scheduleSync(conversationId, next);
+        return next;
+      });
+    },
+    [scheduleSync],
+  );
+
   const ensureAssistantTurn = useCallback((model: string) => {
     setMessages((prev) => {
       const last = prev[prev.length - 1];
@@ -233,6 +258,7 @@ export function useHomeChatHistory(isAuthenticated: boolean) {
     createConversation,
     appendMessages,
     updateLastAssistant,
+    setLastAssistantContent,
     ensureAssistantTurn,
     beginTurn,
     addUserMessage,

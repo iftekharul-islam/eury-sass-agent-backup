@@ -12,6 +12,7 @@ pub mod engine;
 pub mod providers;
 pub mod run_manager;
 pub mod tool_calls;
+pub mod tool_executor;
 
 /// The crate identity used by Phase 0 build and boundary checks.
 pub const CRATE_NAME: &str = "agent-core";

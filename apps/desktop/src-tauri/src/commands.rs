@@ -2,10 +2,12 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, State};
 use tokio::sync::mpsc;
+use tokio_util::sync::CancellationToken;
 
 use agent_core::agent_loop::AgentLoopEngine;
 use agent_core::approval::ApprovalWaiter;
 use agent_core::run_manager::RunManager;
+use agent_core::tool_executor::{ToolExecutor, ToolExecuteRequest};
 use agent_types::events::AgentEvent;
 use agent_types::requests::RunRequest;
 
@@ -35,6 +37,7 @@ impl From<agent_types::errors::AgentError> for IpcError {
 
 pub struct AppState {
     pub run_manager: Arc<RunManager>,
+    pub tool_executor: Arc<ToolExecutor>,
     pub approvals: Arc<ApprovalWaiter>,
     pub workspace_path: std::sync::Mutex<Option<PathBuf>>,
     pub terminals: Arc<agent_sandbox::pty::PtyManager>,
@@ -58,12 +61,14 @@ impl AppState {
         let approvals = Arc::new(ApprovalWaiter::new());
         let trust = Arc::new(agent_sandbox::workspace::TrustStore::new());
         let engine = Arc::new(AgentLoopEngine::new(approvals.clone(), trust.clone())?);
+        let tool_executor = Arc::new(ToolExecutor::new(approvals.clone(), trust.clone())?);
 
         let store = agent_store::actor::spawn_actor(&db_path.to_string_lossy())
             .map_err(|e| agent_types::errors::AgentError::Internal(format!("store: {e}")))?;
 
         Ok(Self {
             run_manager: Arc::new(RunManager::new(engine)),
+            tool_executor,
             approvals,
             workspace_path: std::sync::Mutex::new(None),
             terminals: Arc::new(agent_sandbox::pty::PtyManager::new(env!("CARGO_PKG_VERSION"))),
@@ -351,6 +356,117 @@ pub async fn run_start(
     });
 
     Ok(())
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AiRunRegisterRequest {
+    pub run_id: uuid::Uuid,
+    pub conversation_id: uuid::Uuid,
+}
+
+/// Registers a foreground run for the desktop AI SDK path (no Rust inference loop).
+#[tauri::command]
+pub async fn ai_run_register(
+    request: AiRunRegisterRequest,
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<(), IpcError> {
+    ensure_fresh_session(&state).await?;
+    state.run_manager.register_run(request.conversation_id).await?;
+    let _ = app.emit(
+        "agent://app",
+        AgentEvent::Meta {
+            run_id: request.run_id,
+            status: "streaming".to_string(),
+        },
+    );
+    Ok(())
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AiRunCompleteRequest {
+    pub run_id: uuid::Uuid,
+    pub conversation_id: uuid::Uuid,
+    pub stop_reason: String,
+}
+
+/// Marks an AI SDK run complete and releases the foreground run slot.
+#[tauri::command]
+pub async fn ai_run_complete(
+    request: AiRunCompleteRequest,
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<(), IpcError> {
+    state.run_manager.unregister_run(request.conversation_id).await;
+    let _ = app.emit(
+        "agent://app",
+        AgentEvent::RunComplete {
+            run_id: request.run_id,
+            stop_reason: request.stop_reason,
+        },
+    );
+    Ok(())
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ToolExecuteIpcRequest {
+    pub run_id: uuid::Uuid,
+    pub conversation_id: uuid::Uuid,
+    pub tool_call_id: String,
+    pub name: String,
+    pub arguments: serde_json::Value,
+    pub mode: agent_types::requests::RunMode,
+    pub workspace_root: Option<PathBuf>,
+}
+
+/// Executes one local tool with policy, approvals, and live output streaming.
+#[tauri::command]
+pub async fn tool_execute(
+    request: ToolExecuteIpcRequest,
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<serde_json::Value, IpcError> {
+    if let Some(root) = request.workspace_root.clone() {
+        let mut guard = state
+            .workspace_path
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        *guard = Some(root);
+    }
+
+    let cancel = state
+        .run_manager
+        .cancel_token_for(request.conversation_id)
+        .await
+        .unwrap_or_else(CancellationToken::new);
+
+    let (tx, mut rx) = mpsc::channel::<AgentEvent>(32);
+    let app_handle = app.clone();
+    tauri::async_runtime::spawn(async move {
+        while let Some(event) = rx.recv().await {
+            let _ = app_handle.emit("agent://app", event);
+        }
+    });
+
+    let result = state.tool_executor.execute(
+        ToolExecuteRequest {
+            run_id: request.run_id,
+            conversation_id: request.conversation_id,
+            tool_call_id: request.tool_call_id,
+            name: request.name,
+            arguments: request.arguments,
+            mode: request.mode,
+            workspace_root: request.workspace_root,
+        },
+        &tx,
+        &cancel,
+    )
+    .await;
+
+    Ok(result)
 }
 
 /// The error's canonical `EURY_*` code, read from its own serde tag so this
@@ -712,7 +828,7 @@ const SETTINGS_KEY: &str = "app_settings";
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
-            theme: "dark".to_string(),
+            theme: "light".to_string(),
             accent: "ember".to_string(),
             density: "default".to_string(),
             extra: serde_json::Map::new(),

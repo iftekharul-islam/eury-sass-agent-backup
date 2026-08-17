@@ -3,6 +3,8 @@ import { Icon } from "../Icons";
 import { EuryMark } from "../EuryMark";
 import { MarkdownRenderer } from "../MarkdownRenderer";
 import { sanitizeAssistantContent } from "../../lib/chat-errors";
+import type { GeneratedImagePreview } from "../../lib/conversations";
+import { ChatGeneratedImages } from "./ChatGeneratedImages";
 
 export interface ChatTurnProps {
   id: string;
@@ -14,6 +16,8 @@ export interface ChatTurnProps {
   badge?: string;
   modeBadge?: string;
   text?: string;
+  generatedImages?: GeneratedImagePreview[];
+  imageGenerating?: boolean;
   fileChip?: string;
   showActions?: boolean;
   variant?: "chat" | "agent";
@@ -186,6 +190,8 @@ export function ChatTurn({
   badge,
   modeBadge,
   text,
+  generatedImages,
+  imageGenerating = false,
   fileChip,
   showActions = true,
   variant = "agent",
@@ -234,6 +240,14 @@ export function ChatTurn({
         <div className="turn turn-assistant">
           <div className="turn-body">
             {displayText && <MarkdownRenderer content={displayText} />}
+            {imageGenerating ? (
+              <div className="chat-image-generating" aria-live="polite">
+                Generating image…
+              </div>
+            ) : null}
+            {generatedImages && generatedImages.length > 0 ? (
+              <ChatGeneratedImages images={generatedImages} />
+            ) : null}
             {fileChip && (
               <span className="chip-file">
                 <Icon name="file" />
@@ -243,11 +257,11 @@ export function ChatTurn({
             {statusNode}
           </div>
         </div>
-        {displayText ? (
+        {displayText || (generatedImages && generatedImages.length > 0) || imageGenerating ? (
           <ChatTurnHoverMeta
             modelName={modelName}
             time={time}
-            copyText={displayText}
+            copyText={displayText ?? ""}
             onRetry={onRetry}
             align="assistant"
             actionsDisabled={actionsDisabled}

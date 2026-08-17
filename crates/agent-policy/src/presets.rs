@@ -124,7 +124,7 @@ pub fn standard_preset() -> WorkspacePolicy {
 
     policy.filesystem.deny_globs = vec![".env*".into(), "**/*.pem".into(), "~/.ssh/**".into()];
     policy.filesystem.redact_secrets_in_context = true;
-    policy.commands.deny_patterns = vec!["\\brm\\s+-rf\\b".into(), "\\bsudo\\b".into()];
+    policy.commands.deny_patterns = vec!["\\bsudo\\b".into()];
 
     policy
 }

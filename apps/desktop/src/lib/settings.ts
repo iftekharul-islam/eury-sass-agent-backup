@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Theme, Accent, Density, ThemeManager } from "./theme";
 import { ipcClient } from "./ipc";
+import { refreshTerminalThemes } from "./terminal-session";
 
 export type UserPlan = "Free" | "Pro" | "Team" | "Enterprise";
 
@@ -213,6 +214,19 @@ function mergeWithDefaults(parsed: Partial<AppSettings>): AppSettings {
   };
 }
 
+function applyThemeFromSettings(next: AppSettings, prev?: AppSettings): void {
+  if (!prev || next.theme !== prev.theme) ThemeManager.setTheme(next.theme);
+  if (!prev || next.accent !== prev.accent) ThemeManager.setAccent(next.accent);
+  if (!prev || next.density !== prev.density) ThemeManager.setDensity(next.density);
+  if (
+    !prev ||
+    next.theme !== prev.theme ||
+    next.accent !== prev.accent
+  ) {
+    refreshTerminalThemes();
+  }
+}
+
 /// Reads any settings left in plaintext `localStorage` by an older build, so
 /// upgrading doesn't silently reset the user's configuration.
 function readLegacySettings(): AppSettings | null {
@@ -226,6 +240,14 @@ function readLegacySettings(): AppSettings | null {
 }
 
 let currentSettings: AppSettings = readLegacySettings() ?? DEFAULT_SETTINGS;
+
+// Apply cached settings before async hydrate so the first React paint matches
+// the user's preference instead of index.html's static defaults.
+ThemeManager.init(
+  currentSettings.theme,
+  currentSettings.accent,
+  currentSettings.density,
+);
 
 export const SettingsStore = {
   get(): AppSettings {
@@ -258,25 +280,21 @@ export const SettingsStore = {
       }
     }
 
-    ThemeManager.setTheme(currentSettings.theme);
-    ThemeManager.setAccent(currentSettings.accent);
-    ThemeManager.setDensity(currentSettings.density);
+    applyThemeFromSettings(currentSettings);
     listeners.forEach((listener) => listener(currentSettings));
     return currentSettings;
   },
 
   set(partial: Partial<AppSettings> | ((prev: AppSettings) => AppSettings)): AppSettings {
-    const next = typeof partial === "function" ? partial(currentSettings) : { ...currentSettings, ...partial };
+    const prev = currentSettings;
+    const next = typeof partial === "function" ? partial(prev) : { ...prev, ...partial };
     currentSettings = next;
     // Write through to the encrypted store. Fire-and-forget keeps `set`
     // synchronous for its many call sites; a failed write leaves the
     // in-memory value in place rather than reverting under the user.
     void ipcClient.settings.set(next).catch(() => {});
 
-    // Sync ThemeManager if theme-related fields changed
-    if (next.theme !== ThemeManager.getTheme()) ThemeManager.setTheme(next.theme);
-    if (next.accent !== ThemeManager.getAccent()) ThemeManager.setAccent(next.accent);
-    if (next.density !== ThemeManager.getDensity()) ThemeManager.setDensity(next.density);
+    applyThemeFromSettings(next, prev);
 
     listeners.forEach((listener) => listener(next));
     return next;

@@ -14,8 +14,9 @@ import { selectActivePreview, usePreviewServers } from "../lib/preview-servers";
 import { COMPOSER_MODES } from "./ModePicker";
 import { Composer } from "./Composer";
 import { useAppSettings } from "../lib/settings";
-import { startManagedRun, effectiveRunMode } from "../lib/run";
+import { startManagedRun, effectiveRunMode, cancelAiSdkRun } from "../lib/run";
 import { ipcClient } from "../lib/ipc";
+import { describeThrown } from "../lib/chat-errors";
 import {
   isWriteTool,
   selectActiveRun,
@@ -165,8 +166,10 @@ function AssistantTurn({
   const showRunStatus = Boolean(
     isRunning &&
       run &&
-      !thinkingLive &&
-      (hasVisibleOutput || run.phase === "tool" || run.phase === "awaiting_approval"),
+      (thinkingLive ||
+        hasVisibleOutput ||
+        run.phase === "tool" ||
+        run.phase === "awaiting_approval"),
   );
   const isEmpty = turn.blocks.length === 0 && !showThinking;
 
@@ -332,6 +335,8 @@ export function ConversationCanvas({
   }, [conversationId]);
 
   const interruptRun = React.useCallback(() => {
+    setStartError(null);
+    cancelAiSdkRun(conversationId);
     sessionStore.cancelActiveRun(conversationId);
     void ipcClient.run.cancel(conversationId).catch((err) => {
       console.error("Failed to cancel run:", err);
@@ -384,7 +389,7 @@ export function ConversationCanvas({
       try {
         await ipcClient.workspace.open(workspaceRoot);
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "Failed to open workspace";
+        const msg = describeThrown(err, "Failed to open workspace");
         setStartError(msg);
         return;
       }
@@ -427,6 +432,7 @@ export function ConversationCanvas({
         provider: settings.model.activeProvider,
         modelId: settings.model.activeModelId,
         workspaceRoot,
+        isTrusted: isWorkspaceTrusted,
         attachments: attachments?.map(({ id, name, contentType, dataBase64 }) => ({
           id,
           name,
@@ -435,12 +441,13 @@ export function ConversationCanvas({
         })),
       });
     } catch (err) {
-      const msg =
-        err instanceof Error
-          ? err.message
-          : typeof err === "string"
-            ? err
-            : "Failed to start run";
+      // A run the user stopped themselves already reads "cancelled" in the
+      // transcript; surfacing the underlying rejection on top of that would
+      // relabel an intentional stop as a failure.
+      const wasCancelled =
+        sessionStore.getState().runs.find((r) => r.id === runId)?.status === "cancelled";
+      if (wasCancelled) return;
+      const msg = describeThrown(err, "Failed to start run");
       sessionStore.failRun(runId, msg);
       setStartError(msg);
       console.error("Failed to start managed run:", err);

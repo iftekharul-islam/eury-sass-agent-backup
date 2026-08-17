@@ -82,6 +82,23 @@ function stripBracketCalls(text: string): string {
   return out;
 }
 
+const NAME_KEYS = ["name", "tool", "tool_name"];
+const ARGS_KEYS = ["arguments", "parameters"];
+
+/** Does this object look like a tool call rather than a JSON example the user wanted? */
+function isCallShape(item: unknown): boolean {
+  if (!item || typeof item !== "object") return false;
+  const obj = item as Record<string, unknown>;
+  const nameKey = NAME_KEYS.find((k) => k in obj);
+  if (!nameKey) return false;
+  const argsKey = ARGS_KEYS.find((k) => k in obj);
+  if (!argsKey) return false;
+  // A real call is {name, arguments} (+ maybe id) — reject package.json-style
+  // objects that also carry unrelated fields.
+  const allowed = new Set([nameKey, argsKey, "id"]);
+  return Object.keys(obj).every((k) => allowed.has(k));
+}
+
 /** Does this fence body look like a tool call rather than data the user wanted? */
 function bodyIsCall(body: string): boolean {
   const trimmed = body.trim();
@@ -90,15 +107,12 @@ function bodyIsCall(body: string): boolean {
   try {
     const parsed: unknown = JSON.parse(trimmed);
     const items = Array.isArray(parsed) ? parsed : [parsed];
-    return items.some(
-      (item) =>
-        !!item &&
-        typeof item === "object" &&
-        ["name", "tool", "tool_name"].some((key) => key in (item as Record<string, unknown>)),
-    );
+    return items.some((item) => isCallShape(item));
   } catch {
-    // Still streaming: judge the fragment on its shape instead.
-    return /"(name|tool|tool_name)"\s*:/.test(trimmed);
+    // Still streaming: require both a name-like key and an arguments key.
+    const hasName = /"(name|tool|tool_name)"\s*:/.test(trimmed);
+    const hasArgs = /"(arguments|parameters)"\s*:/.test(trimmed);
+    return hasName && hasArgs;
   }
 }
 

@@ -1,7 +1,6 @@
 import * as React from "react";
 import { useState, useEffect, useMemo } from "react";
 import { SvgSprite } from "./components/Icons";
-import { ThemeManager } from "./lib/theme";
 import { TitleBar } from "./components/TitleBar";
 import { CodeSidebar, HomeSidebar } from "./components/Sidebar";
 import { HomeLauncher } from "./components/HomeLauncher";
@@ -183,9 +182,6 @@ function AppContent() {
   }, []);
 
   useEffect(() => {
-    // Sync theme with ThemeManager defaults or persisted settings
-    ThemeManager.init("light", "ember", "default");
-
     const handleKeyDown = (e: KeyboardEvent) => {
       // Mod+K or Mod+P: Open Command Palette
       if ((e.metaKey || e.ctrlKey) && (e.key === "k" || e.key === "p")) {
@@ -520,7 +516,7 @@ function AppContent() {
                     initialPrompt={pendingHomePrompt ?? undefined}
                     onInitialPromptConsumed={() => setPendingHomePrompt(null)}
                     onBeginTurn={homeChat.beginTurn}
-                    onAppendAssistantDelta={homeChat.updateLastAssistant}
+                    onSetLastAssistantContent={homeChat.setLastAssistantContent}
                     onRemoveLastAssistant={homeChat.removeLastAssistantTurn}
                     onRunError={(msg) => console.error("Home chat error:", msg)}
                   />

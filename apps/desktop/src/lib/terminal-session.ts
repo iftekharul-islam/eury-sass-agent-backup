@@ -239,3 +239,11 @@ export async function captureSession(id: string, lines?: number): Promise<string
   const res = await ipcClient.terminal.capture(id, lines);
   return res.text;
 }
+
+/** Re-read CSS tokens after `data-theme` / accent changes on `<html>`. */
+export function refreshTerminalThemes(): void {
+  const theme = buildTheme();
+  for (const entry of sessions.values()) {
+    entry.term.options.theme = theme;
+  }
+}
