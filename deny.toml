@@ -14,7 +14,12 @@ vulnerability = "deny"
 unmaintained = "warn"
 yanked = "deny"
 notice = "warn"
-ignore = []
+# Transitive via cersei → reqwest 0.12 → hickory-resolver 0.25.
+# No compatible upgrade until cersei moves off reqwest 0.12.
+ignore = [
+    { id = "RUSTSEC-2026-0118", reason = "hickory-proto 0.25 NSEC3 loop; unused DNSSEC path via cersei reqwest 0.12" },
+    { id = "RUSTSEC-2026-0119", reason = "hickory-proto 0.25 name-compression DoS; unused DNSSEC path via cersei reqwest 0.12" },
+]
 
 [licenses]
 version = 2

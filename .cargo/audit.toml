@@ -1,0 +1,5 @@
+[advisories]
+# Transitive via cersei → reqwest 0.12 → hickory-resolver 0.25.
+# RUSTSEC-2026-0118 has no 0.25 fix; 0119 needs hickory-proto >=0.26.1,
+# which reqwest 0.12 cannot take. We do not enable DNSSEC validation.
+ignore = ["RUSTSEC-2026-0118", "RUSTSEC-2026-0119"]
