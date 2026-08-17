@@ -2,15 +2,8 @@ name: Agent Security
 
 on:
   pull_request:
-    paths:
-      - "agent/**"
-      - ".github/workflows/agent-security.yml"
-      - "agent/deny.toml"
-      - "agent/.gitleaks.toml"
-      - "agent/security/**"
-      - "agent/tests/fixtures/security/**"
   push:
-    branches: [main]
+    branches: [main, development]
   schedule:
     - cron: "0 4 * * 1" # Weekly Monday 04:00 UTC full scan
 
@@ -20,10 +13,6 @@ concurrency:
 
 permissions:
   contents: read
-
-defaults:
-  run:
-    working-directory: agent
 
 jobs:
   static-and-supply-chain:
@@ -38,7 +27,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af
         with:
-          node-version-file: "agent/.node-version"
+          node-version-file: ".node-version"
 
       - name: Enable pnpm
         shell: bash
@@ -84,10 +73,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          config-path: agent/.gitleaks.toml
+          config-path: .gitleaks.toml
 
       - name: Run Semgrep security rules
         uses: semgrep/semgrep-action@v1
         with:
-          config: agent/security/semgrep/rules.yaml
+          config: security/semgrep/rules.yaml
           generateSarif: false
