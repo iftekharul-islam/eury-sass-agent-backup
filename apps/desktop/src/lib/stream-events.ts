@@ -22,6 +22,7 @@ type RawEvent = {
   type?: string;
   payload?: Record<string, unknown>;
   text?: string;
+  stream?: string;
   run_id?: string;
   code?: string;
   message?: string;
