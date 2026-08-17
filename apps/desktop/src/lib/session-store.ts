@@ -8,6 +8,7 @@
  * never run the agent has an empty store, and the views say so.
  */
 import { useSyncExternalStore } from "react";
+import { extractToolError } from "./tool-errors";
 import { stripAnsi } from "./ansi";
 import { stripToolCallFences } from "./assistant-text";
 import { parseStreamEvent } from "./stream-events";
@@ -783,21 +784,24 @@ function appendToolOutput(toolCallId: string, stream: "stdout" | "stderr", text:
   });
 }
 
-function finishActivity(toolCallId: string, result?: Record<string, unknown>) {
+function finishActivity(toolCallId: string, result?: unknown) {
   const activity = state.activities[toolCallId];
   if (!activity) return;
   if (shouldIgnoreToolEvent(activity)) return;
 
-  const stdout = firstString(result, ["stdout", "output", "content"]);
-  const stderr = firstString(result, ["stderr", "error"]);
-  const diff = firstString(result, ["diff", "patch"]);
-  const exitCode = firstNumber(result, ["exit_code", "exitCode", "status"]);
+  const resultRecord = toRecord(result);
+  const stdout = firstString(resultRecord, ["stdout", "output", "content"]);
+  const errorText =
+    extractToolError(result) ?? extractToolError(activity.stderr ? { error: activity.stderr } : undefined);
+  const stderr = errorText ?? firstString(resultRecord, ["stderr"]);
+  const diff = firstString(resultRecord, ["diff", "patch"]);
+  const exitCode = firstNumber(resultRecord, ["exit_code", "exitCode", "status"]);
   const counted = diff ? countDiffLines(diff) : undefined;
   const endedAt = Date.now();
   const failed =
+    resultRecord?.ok === false ||
     (typeof exitCode === "number" && exitCode !== 0) ||
-    result?.ok === false ||
-    (!!(stderr ?? activity.stderr) && !(stdout ?? activity.stdout) && !diff);
+    Boolean((errorText ?? stderr) && !stdout && !diff);
 
   commit({
     ...state,
@@ -812,9 +816,9 @@ function finishActivity(toolCallId: string, result?: Record<string, unknown>) {
         stderr: stderr ? stripAnsi(stderr) : activity.stderr,
         diff,
         exitCode,
-        path: activity.path ?? firstString(result, ["path", "file_path"]),
-        plus: firstNumber(result, ["added", "plus", "lines_added"]) ?? counted?.plus,
-        minus: firstNumber(result, ["removed", "minus", "lines_removed"]) ?? counted?.minus,
+        path: activity.path ?? firstString(resultRecord, ["path", "file_path"]),
+        plus: firstNumber(resultRecord, ["added", "plus", "lines_added"]) ?? counted?.plus,
+        minus: firstNumber(resultRecord, ["removed", "minus", "lines_removed"]) ?? counted?.minus,
       },
     },
   });

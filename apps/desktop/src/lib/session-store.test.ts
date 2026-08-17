@@ -87,7 +87,31 @@ describe("session store", () => {
     expect(activity.stdout).toBe("1 failed");
   });
 
-  it("appends live command output while a tool is running", () => {
+  it("surfaces edit_file ambiguous errors on the tool card", () => {
+    startRun();
+    sessionStore.ingestEvent({
+      type: "tool_start",
+      payload: {
+        tool_call_id: "t-edit",
+        name: "edit_file",
+        arguments: { path: "src/foo.ts", old_text: "foo", new_text: "bar" },
+      },
+    });
+    sessionStore.ingestEvent({
+      type: "tool_end",
+      payload: {
+        tool_call_id: "t-edit",
+        result: {
+          error:
+            "Execution failed: EURY_TOOL_EDIT_AMBIGUOUS: oldString found multiple times, not unique",
+        },
+      },
+    });
+
+    const activity = sessionStore.getState().activities["t-edit"];
+    expect(activity.status).toBe("failed");
+    expect(activity.stderr).toContain("appears more than once");
+  });
     startRun();
     sessionStore.ingestEvent({
       type: "tool_start",

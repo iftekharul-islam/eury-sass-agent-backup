@@ -147,6 +147,12 @@ export function ToolCard({ activity, onViewDiff }: ToolCardProps) {
           )}
         </div>
       )}
+
+      {(isFailed || isDenied) && activity.stderr && !showBody && (
+        <div className="card-body">
+          <div className="fail" style={{ marginTop: 0 }}>{activity.stderr}</div>
+        </div>
+      )}
     </div>
   );
 }
