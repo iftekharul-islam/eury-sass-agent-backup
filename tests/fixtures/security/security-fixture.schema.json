@@ -1,0 +1,178 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://eury.example/schemas/security-fixture.schema.json",
+  "title": "Eury security contract fixture",
+  "oneOf": [
+    { "$ref": "#/$defs/corpus" },
+    { "$ref": "#/$defs/manifest" }
+  ],
+  "$defs": {
+    "referenceId": {
+      "type": "string",
+      "pattern": "^(A|T|C)-[0-9]{3}$"
+    },
+    "caseId": {
+      "type": "string",
+      "pattern": "^TEST-[0-9]{3}$"
+    },
+    "source": {
+      "enum": [
+        "user_input",
+        "workspace_file",
+        "workspace_policy",
+        "filesystem",
+        "command_argument",
+        "command_environment",
+        "web_request",
+        "redirect",
+        "model_context",
+        "tool_output",
+        "mcp_config",
+        "mcp_server",
+        "cloud_route"
+      ]
+    },
+    "platform": {
+      "enum": ["all", "posix", "linux", "macos", "windows", "cloud"]
+    },
+    "encoding": {
+      "enum": [
+        "utf-8",
+        "json",
+        "jsonl",
+        "url",
+        "percent-encoded",
+        "base64",
+        "shell",
+        "argv",
+        "filesystem"
+      ]
+    },
+    "expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["decision", "error", "reason"],
+      "properties": {
+        "decision": {
+          "enum": [
+            "allow",
+            "deny",
+            "needs_approval",
+            "redact",
+            "reject",
+            "drop",
+            "mark_untrusted"
+          ]
+        },
+        "error": {
+          "type": ["string", "null"],
+          "pattern": "^EURY_[A-Z0-9_]+$"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "category",
+        "source",
+        "platform",
+        "encoding",
+        "payload",
+        "expected",
+        "assets",
+        "threats",
+        "controls"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/caseId" },
+        "category": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$"
+        },
+        "source": { "$ref": "#/$defs/source" },
+        "platform": { "$ref": "#/$defs/platform" },
+        "encoding": { "$ref": "#/$defs/encoding" },
+        "payload": {},
+        "expected": { "$ref": "#/$defs/expected" },
+        "assets": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/referenceId" }
+        },
+        "threats": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/referenceId" }
+        },
+        "controls": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/referenceId" }
+        },
+        "notes": { "type": "string" }
+      }
+    },
+    "corpus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fixtureVersion", "kind", "contractOnly", "cases"],
+      "properties": {
+        "fixtureVersion": { "const": "1.0.0" },
+        "kind": { "const": "security-corpus" },
+        "contractOnly": { "const": true },
+        "cases": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/case" }
+        }
+      }
+    },
+    "manifestEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "category", "caseCount"],
+      "properties": {
+        "path": { "type": "string", "pattern": "^[a-z0-9-]+\\.json$" },
+        "category": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$"
+        },
+        "caseCount": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "manifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fixtureVersion",
+        "kind",
+        "contractOnly",
+        "schema",
+        "totalCases",
+        "corpora"
+      ],
+      "properties": {
+        "fixtureVersion": { "const": "1.0.0" },
+        "kind": { "const": "security-manifest" },
+        "contractOnly": { "const": true },
+        "schema": { "const": "security-fixture.schema.json" },
+        "totalCases": { "type": "integer", "minimum": 1 },
+        "corpora": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/manifestEntry" }
+        }
+      }
+    }
+  }
+}

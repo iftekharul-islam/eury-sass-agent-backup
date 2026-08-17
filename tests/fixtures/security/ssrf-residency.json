@@ -1,0 +1,87 @@
+{
+  "fixtureVersion": "1.0.0",
+  "kind": "security-corpus",
+  "contractOnly": true,
+  "cases": [
+    {
+      "id": "TEST-241",
+      "category": "ssrf.loopback.ipv4",
+      "source": "web_request",
+      "platform": "all",
+      "encoding": "url",
+      "payload": {"url": "http://127.0.0.1:3000/admin"},
+      "expected": {"decision": "deny", "error": "EURY_TOOL_NETWORK_BLOCKED", "reason": "IPv4 loopback targets are blocked."},
+      "assets": ["A-001", "A-002"], "threats": ["T-008"], "controls": ["C-009"]
+    },
+    {
+      "id": "TEST-242",
+      "category": "ssrf.metadata",
+      "source": "web_request",
+      "platform": "cloud",
+      "encoding": "url",
+      "payload": {"url": "http://169.254.169.254/latest/meta-data/iam/security-credentials/"},
+      "expected": {"decision": "deny", "error": "EURY_TOOL_NETWORK_BLOCKED", "reason": "Cloud metadata and link-local targets are blocked."},
+      "assets": ["A-002"], "threats": ["T-008"], "controls": ["C-009"]
+    },
+    {
+      "id": "TEST-243",
+      "category": "ssrf.loopback.ipv6",
+      "source": "web_request",
+      "platform": "all",
+      "encoding": "url",
+      "payload": {"url": "http://[::1]:8080/debug"},
+      "expected": {"decision": "deny", "error": "EURY_TOOL_NETWORK_BLOCKED", "reason": "IPv6 loopback targets are blocked."},
+      "assets": ["A-001", "A-002"], "threats": ["T-008"], "controls": ["C-009"]
+    },
+    {
+      "id": "TEST-244",
+      "category": "ssrf.non_http_scheme",
+      "source": "web_request",
+      "platform": "all",
+      "encoding": "url",
+      "payload": {"url": "file:///etc/passwd"},
+      "expected": {"decision": "deny", "error": "EURY_TOOL_NETWORK_BLOCKED", "reason": "Only HTTP and HTTPS schemes are eligible for network tools."},
+      "assets": ["A-001", "A-002"], "threats": ["T-008"], "controls": ["C-009"]
+    },
+    {
+      "id": "TEST-245",
+      "category": "ssrf.redirect.private",
+      "source": "redirect",
+      "platform": "all",
+      "encoding": "url",
+      "payload": {"initialUrl": "https://public.example/start", "redirectUrl": "http://10.0.0.7/internal"},
+      "expected": {"decision": "deny", "error": "EURY_TOOL_NETWORK_BLOCKED", "reason": "Every redirect target is rechecked and private ranges are blocked."},
+      "assets": ["A-001", "A-002"], "threats": ["T-008"], "controls": ["C-009", "C-010"]
+    },
+    {
+      "id": "TEST-246",
+      "category": "ssrf.dns_rebinding",
+      "source": "web_request",
+      "platform": "all",
+      "encoding": "url",
+      "payload": {"url": "https://rebind.example/data", "dnsAnswers": ["203.0.113.8", "192.168.1.10"]},
+      "expected": {"decision": "deny", "error": "EURY_TOOL_NETWORK_BLOCKED", "reason": "A connection is blocked when resolution changes to a private address."},
+      "assets": ["A-001", "A-002"], "threats": ["T-008"], "controls": ["C-009", "C-010"]
+    },
+    {
+      "id": "TEST-247",
+      "category": "residency.route_mismatch",
+      "source": "cloud_route",
+      "platform": "cloud",
+      "encoding": "json",
+      "payload": {"requiredResidency": "eu", "selectedRegion": "us", "dataClass": "restricted", "operation": "model_request"},
+      "expected": {"decision": "deny", "error": "EURY_ATTACHMENT_ACCESS_DENIED", "reason": "Restricted data cannot use a route outside the authoritative residency."},
+      "assets": ["A-001", "A-003"], "threats": ["T-010"], "controls": ["C-003", "C-011"]
+    },
+    {
+      "id": "TEST-248",
+      "category": "residency.route_match",
+      "source": "cloud_route",
+      "platform": "cloud",
+      "encoding": "json",
+      "payload": {"requiredResidency": "eu", "selectedRegion": "eu", "dataClass": "restricted", "policyAllowsManagedGateway": true},
+      "expected": {"decision": "allow", "error": null, "reason": "The selected route matches residency and the effective policy permits it."},
+      "assets": ["A-001", "A-003"], "threats": ["T-010"], "controls": ["C-011"]
+    }
+  ]
+}

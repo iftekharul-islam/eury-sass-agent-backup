@@ -1,0 +1,15 @@
+disallowed-types = [
+    { path = "std::fs::File", reason = "Use agent_sandbox::path::PathGuard instead" },
+    { path = "std::fs::OpenOptions", reason = "Use agent_sandbox::path::PathGuard instead" },
+    { path = "std::process::Command", reason = "Use agent_sandbox::process::ProcessSupervisor instead" },
+    { path = "tokio::process::Command", reason = "Use agent_sandbox::process::ProcessSupervisor instead" },
+]
+disallowed-methods = [
+    { path = "std::fs::read", reason = "Use agent_sandbox::path::PathGuard instead" },
+    { path = "std::fs::read_to_string", reason = "Use agent_sandbox::path::PathGuard instead" },
+    { path = "std::fs::write", reason = "Use agent_sandbox::path::PathGuard instead" },
+    { path = "std::fs::remove_file", reason = "Use agent_sandbox::path::PathGuard instead" },
+    { path = "tokio::fs::read", reason = "Use agent_sandbox::path::PathGuard instead" },
+    { path = "tokio::fs::read_to_string", reason = "Use agent_sandbox::path::PathGuard instead" },
+    { path = "tokio::fs::write", reason = "Use agent_sandbox::path::PathGuard instead" },
+]

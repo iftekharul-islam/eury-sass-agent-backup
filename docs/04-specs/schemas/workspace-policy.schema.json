@@ -1,0 +1,205 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.eury.dev/agent/workspace-policy/v1",
+  "title": "Eury Agent Workspace Policy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "version",
+    "policyMaxAgeHours",
+    "tools",
+    "models",
+    "filesystem",
+    "commands",
+    "network",
+    "mcp",
+    "cost",
+    "data",
+    "telemetry",
+    "agent",
+    "update"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "version": { "type": "integer", "minimum": 1 },
+    "label": { "type": "string", "maxLength": 120 },
+    "policyMaxAgeHours": { "type": "integer", "minimum": 1, "maximum": 8760 },
+    "tools": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["defaultDecision"],
+      "properties": {
+        "allow": { "$ref": "#/$defs/stringSet" },
+        "deny": { "$ref": "#/$defs/stringSet" },
+        "requireApproval": { "$ref": "#/$defs/toolClassSet" },
+        "defaultDecision": {
+          "type": "object",
+          "additionalProperties": false,
+          "patternProperties": {
+            "^(read|write|execute|network|mcp|write_outside_workspace)$": {
+              "enum": ["allow", "needsApproval", "deny"]
+            }
+          }
+        },
+        "maxGrantScope": {
+          "type": "object",
+          "additionalProperties": false,
+          "patternProperties": {
+            "^(read|write|execute|network|mcp|write_outside_workspace)$": {
+              "enum": ["once", "run", "session", "always"]
+            }
+          }
+        }
+      }
+    },
+    "models": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "allow": { "$ref": "#/$defs/stringSet" },
+        "deny": { "$ref": "#/$defs/stringSet" },
+        "requireManagedGateway": { "type": "boolean" },
+        "allowByok": { "type": "boolean" }
+      }
+    },
+    "filesystem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["denyGlobs", "allowOutsideWorkspace", "redactSecretsInContext"],
+      "properties": {
+        "denyGlobs": { "$ref": "#/$defs/stringSet" },
+        "allowOutsideWorkspace": { "type": "boolean" },
+        "maxFileWriteBytes": { "type": "integer", "minimum": 0 },
+        "redactSecretsInContext": { "type": "boolean" }
+      }
+    },
+    "commands": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["denyPatterns", "maxRuntimeSeconds", "networkDuringExecute"],
+      "properties": {
+        "denyPatterns": { "$ref": "#/$defs/stringSet" },
+        "allowPatterns": { "$ref": "#/$defs/stringSet" },
+        "maxRuntimeSeconds": { "type": "integer", "minimum": 1, "maximum": 3600 },
+        "networkDuringExecute": { "type": "boolean", "default": false }
+      }
+    },
+    "network": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["blockWebFetch", "allowImageGeneration"],
+      "properties": {
+        "blockWebFetch": { "type": "boolean" },
+        "allowImageGeneration": { "type": "boolean" },
+        "allowedHosts": { "$ref": "#/$defs/stringSet" },
+        "blockedHosts": { "$ref": "#/$defs/stringSet" }
+      }
+    },
+    "mcp": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "allowLocalServers",
+        "allowWorkspaceConfig",
+        "requireSignedManifest",
+        "requireApproval",
+        "allowedTransports"
+      ],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "allowedServers": { "$ref": "#/$defs/stringSet" },
+        "blockedServers": { "$ref": "#/$defs/stringSet" },
+        "allowLocalServers": { "type": "boolean" },
+        "allowWorkspaceConfig": { "type": "boolean" },
+        "requireSignedManifest": { "type": "boolean" },
+        "requireApproval": { "enum": ["once", "run", "session"] },
+        "allowedTransports": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "enum": ["stdio", "https"] }
+        },
+        "registryUrl": { "type": "string", "format": "uri", "pattern": "^https://" }
+      }
+    },
+    "cost": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "maxCostPerRunUsdMicros": { "type": "integer", "minimum": 0 },
+        "maxCostPerDayUsdMicros": { "type": "integer", "minimum": 0 },
+        "maxTokensPerRun": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "auditUploadRequired",
+        "auditIncludePaths",
+        "auditPayloadMode",
+        "allowCloudSync",
+        "allowScreenshots"
+      ],
+      "properties": {
+        "auditUploadRequired": { "type": "boolean" },
+        "auditIncludePaths": { "type": "boolean" },
+        "auditPayloadMode": { "enum": ["metadata_only", "full_payload"] },
+        "allowCloudSync": { "type": "boolean" },
+        "allowScreenshots": { "type": "boolean" },
+        "residency": { "enum": ["us", "eu", "in"] }
+      }
+    },
+    "telemetry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "crashReports"],
+      "properties": {
+        "mode": { "enum": ["off", "user_choice", "required"] },
+        "crashReports": { "type": "boolean" },
+        "endpoint": { "type": "string", "format": "uri", "pattern": "^https://" }
+      }
+    },
+    "agent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allowedModes", "allowSubAgents", "maxParallelTools", "maxTurnsPerRun", "requirePlanBeforeWrite"],
+      "properties": {
+        "allowedModes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "enum": ["chat", "ask", "plan", "agent", "build"] }
+        },
+        "allowSubAgents": { "type": "boolean" },
+        "maxParallelTools": { "type": "integer", "minimum": 1, "maximum": 32 },
+        "maxTurnsPerRun": { "type": "integer", "minimum": 1, "maximum": 500 },
+        "requirePlanBeforeWrite": { "type": "boolean" }
+      }
+    },
+    "update": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["channel", "autoUpdate"],
+      "properties": {
+        "minVersion": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+" },
+        "channel": { "enum": ["stable", "beta"] },
+        "autoUpdate": { "type": "boolean" }
+      }
+    }
+  },
+  "$defs": {
+    "stringSet": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "toolClassSet": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "enum": ["read", "write", "execute", "network", "mcp", "write_outside_workspace"]
+      }
+    }
+  }
+}

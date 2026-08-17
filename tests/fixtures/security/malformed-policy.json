@@ -1,0 +1,87 @@
+{
+  "fixtureVersion": "1.0.0",
+  "kind": "security-corpus",
+  "contractOnly": true,
+  "cases": [
+    {
+      "id": "TEST-261",
+      "category": "policy.syntax.truncated",
+      "source": "workspace_policy",
+      "platform": "all",
+      "encoding": "json",
+      "payload": "{\"schemaVersion\":1,\"version\":4,\"tools\":",
+      "expected": {"decision": "reject", "error": "EURY_POLICY_INVALID", "reason": "Truncated JSON is rejected and the previous valid policy remains active."},
+      "assets": ["A-005"], "threats": ["T-011"], "controls": ["C-003", "C-015"]
+    },
+    {
+      "id": "TEST-262",
+      "category": "policy.schema.unknown_version",
+      "source": "workspace_policy",
+      "platform": "all",
+      "encoding": "json",
+      "payload": {"schemaVersion": 999, "version": 4, "tools": {}},
+      "expected": {"decision": "reject", "error": "EURY_POLICY_INVALID", "reason": "An unsupported policy schema version fails validation."},
+      "assets": ["A-005"], "threats": ["T-011"], "controls": ["C-003", "C-015"]
+    },
+    {
+      "id": "TEST-263",
+      "category": "policy.schema.snake_case_alias",
+      "source": "workspace_policy",
+      "platform": "all",
+      "encoding": "json",
+      "payload": {"schemaVersion": 1, "version": 4, "tools": {"default_decision": {"write": "allow"}}},
+      "expected": {"decision": "reject", "error": "EURY_POLICY_INVALID", "reason": "Non-canonical snake-case aliases are not accepted."},
+      "assets": ["A-005"], "threats": ["T-011"], "controls": ["C-015"]
+    },
+    {
+      "id": "TEST-264",
+      "category": "policy.schema.invalid_enum",
+      "source": "workspace_policy",
+      "platform": "all",
+      "encoding": "json",
+      "payload": {"schemaVersion": 1, "version": 4, "tools": {"defaultDecision": {"execute": "askMaybe"}}},
+      "expected": {"decision": "reject", "error": "EURY_POLICY_INVALID", "reason": "Unknown decision enum values fail schema validation."},
+      "assets": ["A-005"], "threats": ["T-011"], "controls": ["C-015"]
+    },
+    {
+      "id": "TEST-265",
+      "category": "policy.schema.wrong_type",
+      "source": "workspace_policy",
+      "platform": "all",
+      "encoding": "json",
+      "payload": {"schemaVersion": 1, "version": "four", "commands": {"maxRuntimeSeconds": -1}},
+      "expected": {"decision": "reject", "error": "EURY_POLICY_INVALID", "reason": "Wrong scalar types and invalid limits fail validation."},
+      "assets": ["A-005"], "threats": ["T-011"], "controls": ["C-015"]
+    },
+    {
+      "id": "TEST-266",
+      "category": "policy.workspace.widening",
+      "source": "workspace_policy",
+      "platform": "all",
+      "encoding": "json",
+      "payload": {"org": {"tools": {"defaultDecision": {"execute": "deny"}}}, "workspace": {"tools": {"defaultDecision": {"execute": "allow"}}}},
+      "expected": {"decision": "reject", "error": "EURY_POLICY_INVALID", "reason": "A workspace source cannot widen an authoritative organization decision."},
+      "assets": ["A-005"], "threats": ["T-011"], "controls": ["C-003", "C-015"]
+    },
+    {
+      "id": "TEST-267",
+      "category": "policy.version.rollback",
+      "source": "workspace_policy",
+      "platform": "all",
+      "encoding": "json",
+      "payload": {"cachedVersion": 12, "receivedPolicy": {"schemaVersion": 1, "version": 11}},
+      "expected": {"decision": "reject", "error": "EURY_POLICY_STALE", "reason": "A policy version rollback is rejected."},
+      "assets": ["A-005"], "threats": ["T-011"], "controls": ["C-003", "C-015"]
+    },
+    {
+      "id": "TEST-268",
+      "category": "policy.signature.invalid",
+      "source": "workspace_policy",
+      "platform": "all",
+      "encoding": "base64",
+      "payload": {"scope": "organization", "documentDigest": "sha256:aaaaaaaa", "signature": "RkFLRV9TSUdOQVRVUkU=", "verification": "failed"},
+      "expected": {"decision": "reject", "error": "EURY_POLICY_SIGNATURE_INVALID", "reason": "A failed enterprise-policy signature is rejected outright."},
+      "assets": ["A-005"], "threats": ["T-011"], "controls": ["C-003", "C-015"]
+    }
+  ]
+}

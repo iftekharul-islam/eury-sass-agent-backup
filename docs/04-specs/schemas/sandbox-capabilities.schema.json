@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.eury.dev/agent/sandbox-capabilities/v1",
+  "title": "Eury Agent Sandbox Capabilities",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "os",
+    "filesystemGuard",
+    "processIsolation",
+    "egressEnforcement",
+    "outsideRootCapabilities",
+    "verifiedAt",
+    "probes",
+    "privilegedToolsEnabled"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "os": { "enum": ["macos", "linux", "windows"] },
+    "osVersion": { "type": "string" },
+    "mechanism": {
+      "enum": [
+        "seatbelt",
+        "landlock_seccomp",
+        "restricted_token_job_broker"
+      ]
+    },
+    "mechanismVersion": { "type": "string" },
+    "filesystemGuard": { "type": "boolean" },
+    "processIsolation": { "type": "boolean" },
+    "egressEnforcement": { "type": "boolean" },
+    "outsideRootCapabilities": { "type": "boolean" },
+    "privilegedToolsEnabled": { "type": "boolean" },
+    "verifiedAt": { "type": "string", "format": "date-time" },
+    "probes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "passed"],
+        "properties": {
+          "id": {
+            "enum": [
+              "outside_root_read_denied",
+              "outside_root_write_denied",
+              "process_tree_contained",
+              "privilege_escalation_denied",
+              "egress_denied"
+            ]
+          },
+          "passed": { "type": "boolean" },
+          "reasonCode": { "type": "string" }
+        }
+      }
+    },
+    "reasonCodes": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "unsupported_os",
+          "mechanism_unavailable",
+          "probe_failed",
+          "policy_requires_stronger_profile",
+          "egress_unenforceable",
+          "outside_root_unenforceable"
+        ]
+      }
+    }
+  }
+}

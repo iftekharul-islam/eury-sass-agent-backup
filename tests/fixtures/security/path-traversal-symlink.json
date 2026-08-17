@@ -1,0 +1,87 @@
+{
+  "fixtureVersion": "1.0.0",
+  "kind": "security-corpus",
+  "contractOnly": true,
+  "cases": [
+    {
+      "id": "TEST-201",
+      "category": "path.traversal.parent",
+      "source": "filesystem",
+      "platform": "all",
+      "encoding": "filesystem",
+      "payload": {"workspace": "/work/repo", "path": "../../etc/passwd", "operation": "read"},
+      "expected": {"decision": "deny", "error": "EURY_TOOL_PATH_DENIED", "reason": "Canonical target escapes the workspace boundary."},
+      "assets": ["A-001"], "threats": ["T-001"], "controls": ["C-001", "C-003"]
+    },
+    {
+      "id": "TEST-202",
+      "category": "path.traversal.encoded",
+      "source": "filesystem",
+      "platform": "all",
+      "encoding": "percent-encoded",
+      "payload": {"workspace": "/work/repo", "path": "%2e%2e/%2e%2e/.ssh/id_ed25519", "operation": "read"},
+      "expected": {"decision": "deny", "error": "EURY_TOOL_PATH_DENIED", "reason": "Traversal remains outside the workspace after one canonical decoding pass."},
+      "assets": ["A-001", "A-002"], "threats": ["T-001", "T-004"], "controls": ["C-001", "C-003"]
+    },
+    {
+      "id": "TEST-203",
+      "category": "path.traversal.windows",
+      "source": "filesystem",
+      "platform": "windows",
+      "encoding": "filesystem",
+      "payload": {"workspace": "C:\\work\\repo", "path": "..\\..\\Users\\alice\\.ssh\\id_rsa", "operation": "read"},
+      "expected": {"decision": "deny", "error": "EURY_TOOL_PATH_DENIED", "reason": "Windows parent traversal escapes the normalized workspace root."},
+      "assets": ["A-001", "A-002"], "threats": ["T-001", "T-004"], "controls": ["C-001", "C-003"]
+    },
+    {
+      "id": "TEST-204",
+      "category": "path.absolute.outside",
+      "source": "filesystem",
+      "platform": "posix",
+      "encoding": "filesystem",
+      "payload": {"workspace": "/work/repo", "path": "/tmp/eury-output.txt", "operation": "write"},
+      "expected": {"decision": "deny", "error": "EURY_TOOL_PATH_DENIED", "reason": "Outside-workspace writes are denied by default."},
+      "assets": ["A-001"], "threats": ["T-001"], "controls": ["C-001", "C-003"]
+    },
+    {
+      "id": "TEST-205",
+      "category": "path.symlink.escape",
+      "source": "filesystem",
+      "platform": "posix",
+      "encoding": "filesystem",
+      "payload": {"workspace": "/work/repo", "path": "cache/host-secret", "symlinks": {"cache/host-secret": "/etc/shadow"}, "operation": "read"},
+      "expected": {"decision": "deny", "error": "EURY_TOOL_SYMLINK_ESCAPE", "reason": "The final path resolves through a symlink outside the workspace."},
+      "assets": ["A-001", "A-002"], "threats": ["T-002"], "controls": ["C-001", "C-002", "C-003"]
+    },
+    {
+      "id": "TEST-206",
+      "category": "path.symlink.intermediate",
+      "source": "filesystem",
+      "platform": "posix",
+      "encoding": "filesystem",
+      "payload": {"workspace": "/work/repo", "path": "vendor/link/authorized_keys", "symlinks": {"vendor/link": "/home/alice/.ssh"}, "operation": "write"},
+      "expected": {"decision": "deny", "error": "EURY_TOOL_SYMLINK_ESCAPE", "reason": "An intermediate component resolves outside the workspace."},
+      "assets": ["A-001", "A-002"], "threats": ["T-002"], "controls": ["C-001", "C-002", "C-003"]
+    },
+    {
+      "id": "TEST-207",
+      "category": "path.junction.escape",
+      "source": "filesystem",
+      "platform": "windows",
+      "encoding": "filesystem",
+      "payload": {"workspace": "C:\\work\\repo", "path": "cache\\profile\\NTUSER.DAT", "junctions": {"cache\\profile": "C:\\Users\\alice"}, "operation": "read"},
+      "expected": {"decision": "deny", "error": "EURY_TOOL_SYMLINK_ESCAPE", "reason": "A junction/reparse point resolves outside the workspace."},
+      "assets": ["A-001", "A-002"], "threats": ["T-002"], "controls": ["C-001", "C-002", "C-003"]
+    },
+    {
+      "id": "TEST-208",
+      "category": "path.canonical.inside",
+      "source": "filesystem",
+      "platform": "all",
+      "encoding": "filesystem",
+      "payload": {"workspace": "/work/repo", "path": "src/../src/main.rs", "operation": "read"},
+      "expected": {"decision": "allow", "error": null, "reason": "The canonical path remains inside the workspace and the operation is read-only."},
+      "assets": ["A-001"], "threats": ["T-001"], "controls": ["C-001"]
+    }
+  ]
+}

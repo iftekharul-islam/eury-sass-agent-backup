@@ -1,0 +1,69 @@
+name: Agent CI
+
+on:
+  pull_request:
+    paths:
+      - "agent/**"
+      - ".github/workflows/agent-ci.yml"
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: agent
+
+jobs:
+  foundation:
+    name: foundation (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, windows-2022, ubuntu-latest]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Set up Node.js
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af
+        with:
+          node-version-file: "agent/.node-version"
+
+      - name: Enable pnpm
+        shell: bash
+        run: corepack enable
+
+      - name: Install web dependencies
+        shell: bash
+        run: pnpm install --frozen-lockfile
+
+      - name: Check web foundation and contracts
+        shell: bash
+        run: pnpm check
+
+      - name: Format Rust
+        shell: bash
+        run: cargo fmt --check
+
+      - name: Lint Rust
+        shell: bash
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+      - name: Test Rust workspace
+        shell: bash
+        run: cargo test --workspace --locked
+
+      - name: Build Rust workspace (locked check)
+        shell: bash
+        run: cargo check --workspace --locked
+
+      - name: Build desktop shell smoke
+        shell: bash
+        run: pnpm --filter @eury/desktop build

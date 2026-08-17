@@ -1,0 +1,26 @@
+{
+  "name": "@eury/agent-workspace",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.5.1",
+  "engines": {
+    "node": ">=24.18.0 <25",
+    "pnpm": ">=11.5.1 <12"
+  },
+  "scripts": {
+    "build": "pnpm --filter @eury/desktop build",
+    "build:alpha": "pnpm --filter @eury/desktop tauri build",
+    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm test:mutation && pnpm version:check && pnpm tokens:check && pnpm docs:check && pnpm product:check && pnpm security:check && pnpm boundaries:check",
+    "dev": "pnpm --filter @eury/desktop dev",
+    "docs:check": "node scripts/check-docs.mjs",
+    "lint": "pnpm --filter @eury/desktop lint",
+    "product:check": "node scripts/check-product-contracts.mjs",
+    "security:check": "node scripts/check-security-contracts.mjs",
+    "test": "pnpm --filter @eury/desktop test",
+    "test:mutation": "node tests/checkers-mutation.test.mjs",
+    "tokens:check": "node scripts/check-token-parity.mjs",
+    "typecheck": "pnpm --filter @eury/desktop typecheck",
+    "version:check": "node scripts/check-version.mjs",
+    "boundaries:check": "node scripts/check-boundaries.mjs"
+  }
+}

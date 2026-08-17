@@ -1,0 +1,16 @@
+{
+  "fixtureVersion": "1.0.0",
+  "kind": "security-manifest",
+  "contractOnly": true,
+  "schema": "security-fixture.schema.json",
+  "totalCases": 56,
+  "corpora": [
+    {"path": "path-traversal-symlink.json", "category": "path.traversal-symlink", "caseCount": 8},
+    {"path": "command-metacharacter-egress.json", "category": "command.metacharacter-egress", "caseCount": 8},
+    {"path": "prompt-injection-provenance-delimiters.json", "category": "prompt.injection-provenance-delimiters", "caseCount": 8},
+    {"path": "secrets-redaction.json", "category": "secrets.redaction", "caseCount": 8},
+    {"path": "ssrf-residency.json", "category": "ssrf.residency", "caseCount": 8},
+    {"path": "hostile-mcp.json", "category": "mcp.hostile", "caseCount": 8},
+    {"path": "malformed-policy.json", "category": "policy.malformed", "caseCount": 8}
+  ]
+}

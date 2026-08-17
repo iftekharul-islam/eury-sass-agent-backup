@@ -1,0 +1,93 @@
+name: Agent Security
+
+on:
+  pull_request:
+    paths:
+      - "agent/**"
+      - ".github/workflows/agent-security.yml"
+      - "agent/deny.toml"
+      - "agent/.gitleaks.toml"
+      - "agent/security/**"
+      - "agent/tests/fixtures/security/**"
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 4 * * 1" # Weekly Monday 04:00 UTC full scan
+
+concurrency:
+  group: security-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: agent
+
+jobs:
+  static-and-supply-chain:
+    name: Security Analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af
+        with:
+          node-version-file: "agent/.node-version"
+
+      - name: Enable pnpm
+        shell: bash
+        run: corepack enable
+
+      - name: Install web dependencies
+        shell: bash
+        run: pnpm install --frozen-lockfile
+
+      - name: Audit npm dependencies
+        shell: bash
+        run: pnpm audit --audit-level=high
+
+      - name: Check security contracts and attack corpora
+        shell: bash
+        run: pnpm security:check
+
+      - name: Install cargo tools
+        shell: bash
+        run: |
+          cargo install --locked cargo-audit cargo-deny || true
+
+      - name: Run cargo audit
+        shell: bash
+        run: |
+          if command -v cargo-audit >/dev/null 2>&1; then
+            cargo audit --deny warnings
+          else
+            echo "cargo-audit not pre-installed on runner, continuing in CI"
+          fi
+
+      - name: Run cargo deny
+        shell: bash
+        run: |
+          if command -v cargo-deny >/dev/null 2>&1; then
+            cargo deny --config deny.toml check
+          else
+            echo "cargo-deny not pre-installed on runner, continuing in CI"
+          fi
+
+      - name: Run Gitleaks secret scan
+        uses: gitleaks/gitleaks-action@v2.3.8
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          config-path: agent/.gitleaks.toml
+
+      - name: Run Semgrep security rules
+        uses: semgrep/semgrep-action@v1
+        with:
+          config: agent/security/semgrep/rules.yaml
+          generateSarif: false

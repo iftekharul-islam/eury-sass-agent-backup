@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Eury Agent">
+  <rect width="512" height="512" rx="112" fill="#1c1a19"/>
+  <path d="M136 116h240v58H202v52h154v58H202v54h174v58H136z" fill="#f7f6f4"/>
+  <path d="M338 226h38v112h-38z" fill="#c06a26"/>
+</svg>

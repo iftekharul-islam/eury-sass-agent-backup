@@ -1,0 +1,29 @@
+[package]
+name = "agent-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+agent-policy = { version = "0.1.0", path = "../agent-policy" }
+agent-sandbox = { version = "0.1.0", path = "../agent-sandbox" }
+agent-tools = { version = "0.1.0", path = "../agent-tools" }
+agent-types = { version = "0.1.0", path = "../agent-types" }
+async-trait = "0.1.92"
+base64 = "0.23.1"
+bytes = "1.12.1"
+cersei = "0.2.6"
+cersei-agent = "0.2.6"
+futures = "0.3.34"
+keyring = "4.1.6"
+reqwest = { version = "0.13.4", features = ["json", "stream", "rustls"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+thiserror = "2.0.20"
+tokio = { version = "1.53.1", features = ["full"] }
+tokio-util = "0.7.19"
+uuid = { version = "1.24.1", features = ["v7"] }

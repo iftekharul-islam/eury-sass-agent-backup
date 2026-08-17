@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.eury.dev/agent/security-types/v1",
+  "title": "Eury Agent Security Types",
+  "type": "object",
+  "$defs": {
+    "PolicyDecision": {
+      "enum": ["allow", "needsApproval", "deny"]
+    },
+    "ApprovalResponse": {
+      "enum": ["allow", "deny"]
+    },
+    "GrantScope": {
+      "enum": ["once", "run", "session", "always"]
+    },
+    "ToolClass": {
+      "enum": [
+        "read",
+        "write",
+        "execute",
+        "network",
+        "mcp",
+        "write_outside_workspace"
+      ]
+    },
+    "RiskLevel": {
+      "enum": ["low", "medium", "elevated", "critical", "forbidden"]
+    },
+    "TrustLevel": {
+      "enum": ["trusted", "semi_trusted", "untrusted"]
+    },
+    "WorkspaceTrustState": {
+      "enum": ["untrusted", "trusted", "revoked"]
+    },
+    "ContextProvenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "source",
+        "sourceId",
+        "trust",
+        "mediaType",
+        "byteLength",
+        "sha256",
+        "transformChain"
+      ],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "source": {
+          "enum": [
+            "user",
+            "rule",
+            "memory",
+            "plan",
+            "workspace",
+            "tool",
+            "web",
+            "mcp",
+            "attachment",
+            "other_user",
+            "summary"
+          ]
+        },
+        "sourceId": { "type": "string", "minLength": 1 },
+        "trust": { "$ref": "#/$defs/TrustLevel" },
+        "mediaType": { "type": "string", "minLength": 1 },
+        "byteLength": { "type": "integer", "minimum": 0 },
+        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "transformChain": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  },
+  "additionalProperties": false
+}

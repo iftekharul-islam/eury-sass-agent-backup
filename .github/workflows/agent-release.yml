@@ -1,0 +1,157 @@
+name: Agent Release
+
+# Installers for every supported platform.
+#
+# Tauri cannot cross-compile: each bundle needs its own platform's linker,
+# webview and bundler (NSIS on Windows, WebKitGTK on Linux, hdiutil on macOS),
+# so each target is built on its own runner.
+#
+# Unsigned by default: signing switches on when the Apple secrets below are
+# populated. Until then these artifacts are for testing, and macOS warns on
+# first launch.
+#
+# Download the files from the workflow run's Artifacts section.
+
+on:
+  push:
+    branches: [main, development]
+    tags:
+      - "agent-v*"
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Ref to build (defaults to the triggering ref)"
+        required: false
+        type: string
+
+concurrency:
+  group: release-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  # Optional repo Variables (Settings → Secrets and variables → Actions → Variables).
+  # Leave unset to keep the Vite localhost defaults.
+  VITE_EURY_AGENT_API_URL: ${{ vars.VITE_EURY_AGENT_API_URL }}
+  VITE_AGENT_WEB_URL: ${{ vars.VITE_AGENT_WEB_URL }}
+  EURY_AGENT_GATEWAY_URL: ${{ vars.EURY_AGENT_GATEWAY_URL }}
+
+jobs:
+  bundle:
+    name: ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: macos-arm64
+            os: macos-14
+            target: aarch64-apple-darwin
+            bundles: dmg
+          - label: macos-x64
+            os: macos-14
+            target: x86_64-apple-darwin
+            bundles: dmg
+          - label: windows-x64
+            os: windows-2022
+            target: x86_64-pc-windows-msvc
+            bundles: nsis
+          - label: linux-x64
+            os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            bundles: deb
+
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af
+        with:
+          node-version-file: ".node-version"
+
+      - name: Enable pnpm
+        shell: bash
+        run: corepack enable
+
+      # WebKitGTK is the webview Tauri renders into on Linux; without it the
+      # build fails at link time, not at runtime.
+      - name: Install Linux bundle dependencies
+        if: matrix.os == 'ubuntu-22.04'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            libssl-dev \
+            build-essential \
+            pkg-config \
+            patchelf \
+            file
+
+      - name: Install Rust toolchain
+        shell: bash
+        run: |
+          rustup show
+          rustup target add ${{ matrix.target }}
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: release-${{ matrix.target }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: release-${{ matrix.target }}-
+
+      - name: Install web dependencies
+        shell: bash
+        run: pnpm install --frozen-lockfile
+
+      - name: Check version consistency
+        shell: bash
+        run: pnpm version:check
+
+      - name: Build bundle
+        shell: bash
+        working-directory: apps/desktop
+        env:
+          # Empty means "do not sign". Populate these to produce signed and
+          # notarized macOS builds — see
+          # docs/07-ops/03-packaging-signing-notarization.md.
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: pnpm tauri build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
+
+      - name: Collect artifacts
+        shell: bash
+        run: |
+          mkdir -p dist-release
+          base="target/${{ matrix.target }}/release/bundle"
+          find "$base" -type f \
+            \( -name "*.dmg" -o -name "*.app.tar.gz" -o -name "*.msi" \
+               -o -name "*.exe" -o -name "*.AppImage" -o -name "*.deb" \) \
+            -exec cp {} dist-release/ \;
+          ls -lh dist-release
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: eury-agent-${{ matrix.label }}
+          path: dist-release/*
+          if-no-files-found: error
+          retention-days: 14

@@ -1,0 +1,91 @@
+rules:
+  - id: eury-no-std-fs-outside-sandbox
+    message: "Direct std::fs usage is forbidden outside agent-sandbox. All filesystem operations must pass through agent-sandbox."
+    severity: ERROR
+    languages: [rust]
+    patterns:
+      - pattern-either:
+          - pattern: std::fs::$FUNC(...)
+          - pattern: use std::fs;
+          - pattern: use std::fs::$ITEM;
+    paths:
+      exclude:
+        - "crates/agent-sandbox/**"
+        - "security/semgrep/tests/**"
+
+  - id: eury-no-command-new-outside-sandbox
+    message: "Direct process execution via Command::new is forbidden outside agent-sandbox."
+    severity: ERROR
+    languages: [rust]
+    patterns:
+      - pattern-either:
+          - pattern: std::process::Command::new(...)
+          - pattern: Command::new(...)
+    paths:
+      exclude:
+        - "crates/agent-sandbox/**"
+        - "security/semgrep/tests/**"
+
+  - id: eury-no-unwrap-in-core-paths
+    message: "unwrap, expect, and panic are forbidden in core tool and IPC paths."
+    severity: ERROR
+    languages: [rust]
+    patterns:
+      - pattern-either:
+          - pattern: $EXPR.unwrap()
+          - pattern: $EXPR.expect(...)
+          - pattern: panic!(...)
+    paths:
+      include:
+        - "crates/agent-core/**"
+        - "crates/agent-tools/**"
+        - "crates/agent-policy/**"
+        - "apps/desktop/src-tauri/**"
+        - "security/semgrep/tests/**"
+
+  - id: eury-no-dangerous-html
+    message: "dangerouslySetInnerHTML is forbidden outside verified sanitized Markdown renderer."
+    severity: ERROR
+    languages: [typescript, tsx]
+    pattern: |
+      <$TAG dangerouslySetInnerHTML={...} ... />
+    paths:
+      exclude:
+        - "apps/desktop/src/components/SanitizedMarkdown.tsx"
+        - "security/semgrep/tests/**"
+
+  - id: eury-no-console-log-payload
+    message: "Do not log message or tool payload content to console."
+    severity: WARNING
+    languages: [typescript, javascript, tsx]
+    patterns:
+      - pattern-either:
+          - pattern: console.log(..., $X.payload, ...)
+          - pattern: console.log(..., $X.content, ...)
+          - pattern: console.log(..., $X.dataBase64, ...)
+    paths:
+      exclude:
+        - "security/semgrep/tests/**"
+
+  - id: eury-no-raw-process-env
+    message: "Direct process.env reads are forbidden outside AgentConfigService."
+    severity: ERROR
+    languages: [typescript, javascript]
+    pattern: process.env.$VAR
+    paths:
+      exclude:
+        - "src/modules/agent/config/**"
+        - "security/semgrep/tests/**"
+        - "scripts/**"
+
+  - id: eury-no-raw-sql-interpolation
+    message: "SQL string interpolation is forbidden. Use parameterized queries."
+    severity: ERROR
+    languages: [typescript, javascript]
+    patterns:
+      - pattern-either:
+          - pattern: $DB.$queryRawUnsafe(`...${$...VARS}...`)
+          - pattern: $DB.$executeRawUnsafe(`...${$...VARS}...`)
+    paths:
+      exclude:
+        - "security/semgrep/tests/**"

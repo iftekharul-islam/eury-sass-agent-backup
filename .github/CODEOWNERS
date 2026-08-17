@@ -1,0 +1,22 @@
+# Eury Agent Code Ownership
+
+* @eury/desktop
+
+/crates/agent-sandbox/ @eury/security @eury/desktop
+/crates/agent-policy/ @eury/security @eury/desktop
+/crates/agent-core/ @eury/desktop
+/apps/desktop/src-tauri/ @eury/desktop @eury/security
+
+/docs/03-security/ @eury/security
+/docs/04-specs/ @eury/desktop @eury/backend
+/docs/06-enterprise/ @eury/security @eury/backend
+
+# Security gates, workflows, fixtures, and lockfiles
+/.github/workflows/agent-security.yml @eury/security
+/.github/dependabot.yml @eury/security
+/deny.toml @eury/security
+/.gitleaks.toml @eury/security
+/security/ @eury/security
+/tests/fixtures/security/ @eury/security
+/Cargo.lock @eury/security @eury/desktop
+/pnpm-lock.yaml @eury/security @eury/desktop

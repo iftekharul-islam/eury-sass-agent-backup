@@ -1,0 +1,24 @@
+[package]
+name = "agent-sandbox-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+agent-sandbox = { path = ".." }
+
+[[bin]]
+name = "path_canonicalization"
+path = "fuzz_targets/path_canonicalization.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "command_parsing"
+path = "fuzz_targets/command_parsing.rs"
+test = false
+doc = false
