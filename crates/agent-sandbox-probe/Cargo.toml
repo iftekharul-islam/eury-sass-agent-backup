@@ -12,4 +12,4 @@ path = "src/main.rs"
 [dependencies]
 landlock = "0.4.4"
 libc = "0.2"
-seccompiler = "0.4.0"
+seccompiler = "0.5.0"
