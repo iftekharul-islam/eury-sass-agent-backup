@@ -8,10 +8,10 @@
     "pnpm": ">=11.5.1 <12"
   },
   "scripts": {
-    "build": "pnpm --filter @eury/desktop build",
-    "build:alpha": "pnpm --filter @eury/desktop tauri build",
+    "build": "node init && pnpm --filter @eury/desktop build",
+    "build:alpha": "node init && pnpm --filter @eury/desktop tauri build",
     "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm test:mutation && pnpm version:check && pnpm tokens:check && pnpm docs:check && pnpm product:check && pnpm security:check && pnpm boundaries:check",
-    "dev": "pnpm --filter @eury/desktop dev",
+    "dev": "node init && pnpm --filter @eury/desktop dev",
     "docs:check": "node scripts/check-docs.mjs",
     "lint": "pnpm --filter @eury/desktop lint",
     "product:check": "node scripts/check-product-contracts.mjs",
