@@ -34,7 +34,7 @@ dependencies = [
  "cersei-agent",
  "futures",
  "keyring",
- "reqwest 0.13.4",
+ "reqwest 0.13.5",
  "serde",
  "serde_json",
  "thiserror 2.0.20",
@@ -1856,7 +1856,7 @@ dependencies = [
  "agent-types",
  "dotenvy",
  "ignore",
- "reqwest 0.13.4",
+ "reqwest 0.13.5",
  "rusqlite",
  "serde",
  "serde_json",
@@ -3454,7 +3454,7 @@ dependencies = [
  "percent-encoding",
  "referencing",
  "regex",
- "reqwest 0.13.4",
+ "reqwest 0.13.5",
  "rustls",
  "serde",
  "serde_json",
@@ -5126,11 +5126,11 @@ dependencies = [
 
 [[package]]
 name = "reqwest"
-version = "0.13.4"
+version = "0.13.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "219c5811de6525e5416c7d5d53bb656d3afdbc6c5af816e0802bcfa42dbdc1c3"
+checksum = "16a1cfa75cc186dd73d5818e510e042e40927bccc9c236b061cea97e1eb08029"
 dependencies = [
- "base64 0.22.1",
+ "base64 0.23.1",
  "bytes",
  "encoding_rs",
  "futures-channel",
@@ -6392,7 +6392,7 @@ dependencies = [
  "percent-encoding",
  "plist",
  "raw-window-handle",
- "reqwest 0.13.4",
+ "reqwest 0.13.5",
  "serde",
  "serde_json",
  "serde_repr",
